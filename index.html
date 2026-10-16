@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>City Builder</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- ══ LOADING ══ -->
+  <div id="loading">
+    <div id="loading-card">
+      <div class="loading-spinner"></div>
+      <div id="loading-text">Loading city assets…</div>
+      <div id="loading-sub">Kenney CC0 models</div>
+    </div>
+  </div>
+
+  <!-- ══ WELCOME ══ -->
+  <div id="welcome">
+    <div id="welcome-card">
+      <h1>🏙 City Builder</h1>
+      <p class="subtitle">Zone land, build roads, power your city, and grow a thriving population across 10 levels.</p>
+
+      <h3>Zone Types</h3>
+      <div class="zone-pills">
+        <span class="zone-pill res">🏠 Residential — +15 pop · $400</span>
+        <span class="zone-pill com">🏪 Commercial — +20 jobs · $600</span>
+        <span class="zone-pill ind">🏭 Industrial — +35 jobs · $700</span>
+        <span class="zone-pill rd">🛣 Road — connects zones · $80</span>
+        <span class="zone-pill pw">⚡ Power Plant — radius 6 · $1,500</span>
+        <span class="zone-pill sc">🏫 School — +growth nearby · $900</span>
+        <span class="zone-pill pk">🌳 Park — +happiness · $350</span>
+        <span class="zone-pill gv">🏛 Gov. Office — +happiness · $1,200</span>
+        <span class="zone-pill po">🚔 Police — -crime · $1,000</span>
+        <span class="zone-pill fi">🚒 Fire Station — -fire risk · $1,100</span>
+      </div>
+
+      <h3>Rules</h3>
+      <div class="rules-grid">
+        <div class="rule-item"><span class="rule-icon">🔌</span>
+          <div class="rule-text"><strong>Power first</strong>Zones need power to be fully active. Unpowered buildings show red.</div>
+        </div>
+        <div class="rule-item"><span class="rule-icon">🛣</span>
+          <div class="rule-text"><strong>Road access</strong>Zones adjacent to a road get a +50% productivity bonus.</div>
+        </div>
+        <div class="rule-item"><span class="rule-icon">⚖️</span>
+          <div class="rule-text"><strong>Balance jobs</strong>Unemployment lowers happiness. Mix zone types.</div>
+        </div>
+        <div class="rule-item"><span class="rule-icon">💰</span>
+          <div class="rule-text"><strong>Tax income</strong>Earn taxes each year. Higher levels cap your tax rate.</div>
+        </div>
+        <div class="rule-item"><span class="rule-icon">📈</span>
+          <div class="rule-text"><strong>Growth</strong>Population grows each year in powered, road-connected zones.</div>
+        </div>
+        <div class="rule-item"><span class="rule-icon">�</span>
+          <div class="rule-text"><strong>Maintenance</strong>Higher levels drain money each tick. Keep income positive.</div>
+        </div>
+      </div>
+
+      <div class="win-cond"><span>🎯</span> Meet each level's population, jobs, and happiness goals to advance.</div>
+      <button id="start-btn">Choose Level →</button>
+    </div>
+  </div>
+
+  <!-- ══ LEVEL SELECT ══ -->
+  <div id="level-select">
+    <div id="level-select-card">
+      <h2>Select Level</h2>
+      <p class="ls-sub">Complete each level to unlock the next. Progress is saved.</p>
+      <div id="level-grid"></div>
+      <button id="ls-back-btn">← Back</button>
+    </div>
+  </div>
+
+  <!-- ══ LEVEL COMPLETE ══ -->
+  <div id="level-complete">
+    <div id="lc-card">
+      <div id="lc-title">🎉 Level Complete!</div>
+      <div id="lc-sub"></div>
+      <button id="lc-next-btn">Next Level →</button>
+    </div>
+  </div>
+
+  <!-- ══ LEVEL BANNER (auto-hides after 5s) ══ -->
+  <div id="level-banner">
+    <div id="lb-num">Level 1 of 10</div>
+    <div id="lb-name">Empty Lot</div>
+    <div id="lb-desc"></div>
+    <div id="lb-goals"></div>
+    <div id="lb-constraints"></div>
+  </div>
+
+  <!-- ══ TOOLBAR ══ -->
+  <div id="toolbar">
+    <h1>🏙 City Builder</h1>
+    <span id="level-badge">Lv <span id="s-level">1</span></span>
+    <button class="tool-btn active" data-tool="residential"><span>🏠</span> Residential</button>
+    <button class="tool-btn" data-tool="commercial"><span>🏪</span> Commercial</button>
+    <button class="tool-btn" data-tool="industrial"><span>🏭</span> Industrial</button>
+    <div class="sep"></div>
+    <button class="tool-btn" data-tool="road"><span>🛣</span> Road</button>
+    <button class="tool-btn" data-tool="power"><span>⚡</span> Power Plant</button>
+    <div class="sep"></div>
+    <button class="tool-btn" data-tool="school"><span>🏫</span> School</button>
+    <button class="tool-btn" data-tool="park"><span>🌳</span> Park</button>
+    <button class="tool-btn" data-tool="government"><span>🏛</span> Gov. Office</button>
+    <button class="tool-btn" data-tool="police"><span>🚔</span> Police</button>
+    <button class="tool-btn" data-tool="fire"><span>🚒</span> Fire Station</button>
+    <div class="sep"></div>
+    <button class="tool-btn" data-tool="demolish"><span>🔨</span> Demolish</button>
+    <div class="sep"></div>
+    <div id="tax-wrap">
+      <label>Tax %</label>
+      <input id="tax-rate" type="number" min="0" max="20" value="8"/>
+    </div>
+  </div>
+
+  <!-- ══ HUD ══ -->
+  <div id="hud">
+    <div class="stat">👥 <span id="s-pop">0</span><span id="s-pop-goal" class="goal-suffix">/30</span></div>
+    <div class="stat">💼 Jobs <span id="s-jobs">0</span></div>
+    <div class="stat money">💰 $<span id="s-money">10,000</span></div>
+    <div class="stat power">⚡ <span id="s-power">0</span>/<span id="s-pmax">0</span></div>
+    <div class="stat">📅 Yr <span id="s-year">1</span></div>
+    <div class="stat happy">😊 <span id="s-happy">100</span>%</div>
+    <div class="hud-sep"></div>
+    <div class="stat svc school-stat" title="Active Schools">🏫 <span id="s-schools">0</span></div>
+    <div class="stat svc park-stat"   title="Active Parks">🌳 <span id="s-parks">0</span></div>
+    <div class="stat svc gov-stat"    title="Gov Offices">🏛 <span id="s-govs">0</span></div>
+    <div class="stat svc police-stat" title="Police Stations">🚔 <span id="s-police">0</span></div>
+    <div class="stat svc fire-stat"   title="Fire Stations">🚒 <span id="s-fire">0</span></div>
+  </div>
+
+  <div id="alerts"></div>
+
+  <!-- ══ LEGEND ══ -->
+  <div id="legend">
+    <h4>Zone Types</h4>
+    <div class="leg-row residential"><div class="leg-dot"></div> Residential (+15 pop)</div>
+    <div class="leg-row commercial"><div class="leg-dot"></div> Commercial (+20 jobs)</div>
+    <div class="leg-row industrial"><div class="leg-dot"></div> Industrial (+35 jobs)</div>
+    <div class="leg-row road"><div class="leg-dot"></div> Road (drag to draw)</div>
+    <div class="leg-row power"><div class="leg-dot"></div> Power Plant</div>
+    <div class="leg-row nopower"><div class="leg-dot"></div> No Power (half output)</div>
+    <div class="leg-row school"><div class="leg-dot"></div> School (+growth r=4, +tax)</div>
+    <div class="leg-row park"><div class="leg-dot"></div> Park (+happiness, +cap r=3)</div>
+    <div class="leg-row government"><div class="leg-dot"></div> Gov. Office (+happiness, -unemp penalty r=5)</div>
+    <div class="leg-row police"><div class="leg-dot"></div> Police Station (-crime, +happiness r=5)</div>
+    <div class="leg-row fire"><div class="leg-dot"></div> Fire Station (-fire risk, +happiness r=5)</div>
+  </div>
+
+  <!-- ══ TOOLTIP ══ -->
+  <div id="tooltip">
+    <div class="tt-title" id="tt-title">Building</div>
+    <div class="tt-row">Cost <span id="tt-cost">—</span></div>
+    <div class="tt-row">Population <span id="tt-pop">—</span></div>
+    <div class="tt-row">Jobs <span id="tt-jobs">—</span></div>
+    <div class="tt-row">Tax/yr <span id="tt-tax">—</span></div>
+    <div class="tt-row">Effect <span id="tt-effect">—</span></div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
