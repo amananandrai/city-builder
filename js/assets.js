@@ -1,5 +1,6 @@
 /**
- * assets.js — Kenney CC0 GLB asset loader
+ * assets.js — Kenney CC0 GLB asset loader (used as extra residential
+ * variants; every other building is modelled procedurally in meshes.js)
  *
  * Models are 1×1 unit footprint, y=0 base. Our CELL=1.2 so scale 1.0 fits
  * with a small gap (good for visual separation between tiles).
@@ -22,11 +23,6 @@ const MODEL_FILES = [
   'building-small-b.glb',
   'building-small-c.glb',
   'building-small-d.glb',
-  'building-garage.glb',
-  'grass-trees.glb',
-  'grass-trees-tall.glb',
-  'pavement-fountain.glb',
-  'road-straight.glb',
 ];
 
 export function preloadAssets() {
@@ -87,38 +83,6 @@ export function cloneModel(file, tintHex = null, scale = 1.0) {
 
   clone.scale.setScalar(scale);
   return clone;
-}
-
-// ── Zone → model mapping ───────────────────────────────────────────────────
-const RESIDENTIAL_POOL = [
-  'building-small-a.glb',
-  'building-small-b.glb',
-  'building-small-c.glb',
-  'building-small-d.glb',
-];
-
-// Returns { file, tint, scale } for a given zone type
-export function modelConfig(type) {
-  switch (type) {
-    case 'residential':
-      return { file: RESIDENTIAL_POOL[Math.floor(Math.random() * RESIDENTIAL_POOL.length)], tint: null,       scale: 1.0 };
-    case 'commercial':
-      return { file: 'building-small-c.glb',   tint: null,       scale: 1.0 };
-    case 'industrial':
-      return { file: 'building-garage.glb',     tint: null,       scale: 1.0 };
-    case 'park':
-      return { file: Math.random() > 0.5 ? 'grass-trees.glb' : 'grass-trees-tall.glb', tint: null, scale: 1.0 };
-    case 'school':
-      return { file: 'building-small-b.glb',    tint: 0x1abc9c,   scale: 1.0 };
-    case 'government':
-      return { file: 'building-small-c.glb',    tint: 0xc0392b,   scale: 1.0 };
-    case 'police':
-      return { file: 'building-small-a.glb',    tint: 0x2471a3,   scale: 1.0 };
-    case 'fire':
-      return { file: 'building-small-d.glb',    tint: 0xe74c3c,   scale: 1.0 };
-    default:
-      return null;
-  }
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────────
