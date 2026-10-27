@@ -130,6 +130,7 @@ export function facadeBlock(parent, w, h, d, x, y0, z, { style, wall, bay = 0.22
   mesh.position.set(x, y0 + h / 2, z);
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.userData.noBake = true;
+  mesh.userData.ownsGeometry = true;
   parent.add(mesh);
   return mesh;
 }
@@ -352,6 +353,7 @@ export function bake(group) {
     const m = new THREE.Mesh(merged, mat);
     m.castShadow = shadow;
     m.receiveShadow = true;
+    m.userData.ownsGeometry = true;
     group.add(m);
   }
   return group;

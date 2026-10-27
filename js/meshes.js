@@ -172,6 +172,7 @@ function buildKenneyHouse(g, r) {
   lot(g, 'grass', 'residential');
   m.position.y = BASE;
   m.userData.noBake = true;
+  m.traverse(c => { if (c.isMesh) c.userData.ownsMaterial = true; }); // cloned per tile
   g.add(m);
   tree(g, 0.42, 0.42, 0.75, 'round', r);
   bush(g, -0.42, 0.44, 0.9);
@@ -363,6 +364,7 @@ function buildPower(g, r) {
   for (const [x, z] of [[-0.25, -0.22], [0.2, -0.28]]) {
     const t = add(g, coolingTowerGeo(0.22, 0.15, 0.17, 0.85), shell, x, BASE, z);
     t.userData.noBake = true;
+    t.userData.ownsMaterial = true;
     add(g, G.torus(0.168, 0.01, 4, 24), M(0xb03a2e), x, BASE + 0.82, z, { rx: Math.PI / 2 });
     smoke(g, x, BASE + 0.9, z, 2.2, 6);
   }
@@ -739,6 +741,18 @@ export function buildTileMesh(type, opts = {}) {
   }
   group.userData.body = body;
   return group;
+}
+
+/**
+ * Free GPU memory for a removed tile. Only geometry/materials created for this
+ * tile are disposed; shared cached ones stay alive for other tiles.
+ */
+export function disposeTile(group) {
+  group.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.userData.ownsGeometry) o.geometry.dispose();
+    if (o.userData.ownsMaterial) o.material.dispose();
+  });
 }
 
 /** Per-frame update for a tile group (t = seconds). */

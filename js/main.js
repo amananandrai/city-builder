@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { GRID, CELL, ZONE_DEF, TICK_MS } from './constants.js';
 import { state, getTile, setTile, tileKey, resetState } from './state.js';
-import { buildTileMesh, animateTile, buildScenery } from './meshes.js';
+import { buildTileMesh, animateTile, buildScenery, disposeTile } from './meshes.js';
 import { vehicle, randomTrafficKind } from './props.js';
 import { grassTexture, skyTexture } from './textures.js';
 import { updatePower, updateRoadConnectivity, calcStats, tick } from './simulation.js';
@@ -138,10 +138,14 @@ function gridFromWorld(wx, wz) {
 // ═══════════════════════════════════════════════
 //  CLEAR CITY (between levels)
 // ═══════════════════════════════════════════════
+function removeMesh(mesh) {
+  if (!mesh) return;
+  scene.remove(mesh);
+  disposeTile(mesh);
+}
+
 function clearCity() {
-  for (const k in state.tiles) {
-    if (state.tiles[k].mesh) scene.remove(state.tiles[k].mesh);
-  }
+  for (const k in state.tiles) removeMesh(state.tiles[k].mesh);
   // Remove all cars
   state.cars.forEach(c => carGroup.remove(c.mesh));
 }
@@ -172,7 +176,7 @@ const tileSeed = (gx, gz) => gx * 73856093 ^ gz * 19349663;
 function refreshRoad(gx, gz) {
   const t = getTile(gx, gz);
   if (t?.type !== 'road') return;
-  if (t.mesh) scene.remove(t.mesh);
+  removeMesh(t.mesh);
   t.mesh = buildTileMesh('road', { mask: roadMask(gx, gz), seed: tileSeed(gx, gz) });
   t.mesh.position.copy(worldPos(gx, gz));
   scene.add(t.mesh);
@@ -182,12 +186,19 @@ function refreshRoadsAround(gx, gz) {
   for (const [dx, dz] of Object.values(NEIGHBOURS)) refreshRoad(gx + dx, gz + dz);
 }
 
-function placeTile(gx, gz, type) {
+/** quiet: skip the "occupied" alert (used while drag-painting roads). */
+function placeTile(gx, gz, type, quiet = false) {
   const def  = ZONE_DEF[type];
   if (!def) return;
 
+  // Never build over an existing tile — the player must demolish it first
   const existing = getTile(gx, gz);
-  if (existing?.type === type) return; // dragging over an existing road etc.
+  if (existing) {
+    if (!quiet && existing.type !== type) {
+      showAlert(`🚧 Tile occupied by ${ZONE_DEF[existing.type].label} — demolish it first`, 'warn');
+    }
+    return;
+  }
 
   // Apply level cost multiplier
   const mult = getLevel(state.currentLevel).constraints.costMult;
@@ -197,8 +208,6 @@ function placeTile(gx, gz, type) {
     showAlert(`💸 Need $${cost.toLocaleString()} for ${def.label}`, 'warn');
     return;
   }
-
-  if (existing?.mesh) scene.remove(existing.mesh);
 
   state.money -= cost;
 
@@ -219,7 +228,6 @@ function placeTile(gx, gz, type) {
     population:    type === 'residential' ? Math.floor(def.pop * 0.25) : 0,
   });
   if (type === 'road') refreshRoadsAround(gx, gz);
-  else if (existing?.type === 'road') refreshRoadsAround(gx, gz);
 
   playPlacement();
   updatePower();
@@ -230,7 +238,7 @@ function placeTile(gx, gz, type) {
 function demolishTile(gx, gz) {
   const t = getTile(gx, gz);
   if (!t) return;
-  if (t.mesh) scene.remove(t.mesh);
+  removeMesh(t.mesh);
   delete state.tiles[tileKey(gx, gz)];
   if (t.type === 'road') refreshRoadsAround(gx, gz);
   updatePower();
@@ -345,8 +353,23 @@ setInterval(spawnCar, 1800);
 const raycaster  = new THREE.Raycaster();
 const mouse      = new THREE.Vector2();
 let selectedTool = 'residential';
-let isDragging   = false;
+let isDragging   = false;   // left button went down on the canvas
 let mouseDownPos = { x: 0, y: 0 };
+let roadStart    = null;    // cell the road drag began on
+let lastRoadCell = null;    // last cell painted during a road drag
+
+/** Paint road from the last dragged cell to `cell` with 4-connected steps, so
+ *  fast mouse movement can't leave gaps between road tiles. */
+function paintRoadTo(cell) {
+  let { x, z } = lastRoadCell ?? roadStart ?? cell;
+  placeTile(x, z, 'road', true);
+  while (x !== cell.x || z !== cell.z) {
+    if (Math.abs(cell.x - x) >= Math.abs(cell.z - z)) x += Math.sign(cell.x - x);
+    else z += Math.sign(cell.z - z);
+    placeTile(x, z, 'road', true);
+  }
+  lastRoadCell = cell;
+}
 
 function getHitCell(event) {
   mouse.x =  (event.clientX / innerWidth)  * 2 - 1;
@@ -357,7 +380,7 @@ function getHitCell(event) {
   return gridFromWorld(hits[0].point.x, hits[0].point.z);
 }
 
-window.addEventListener('mousemove', e => {
+window.addEventListener('pointermove', e => {
   const cell = getHitCell(e);
   if (cell) {
     hoverMesh.position.copy(worldPos(cell.x, cell.z)).setY(0.04);
@@ -367,20 +390,33 @@ window.addEventListener('mousemove', e => {
       selectedTool === 'demolish' ? (occupied ? 0xe74c3c : 0x888888) :
       occupied ? 0xe67e22 : 0x00ff88
     );
-    if (isDragging && selectedTool === 'road') placeTile(cell.x, cell.z, 'road');
+    if (isDragging && selectedTool === 'road') paintRoadTo(cell);
   } else {
     hoverMesh.visible = false;
   }
 });
 
-window.addEventListener('mousedown', e => {
-  if (e.target.tagName !== 'CANVAS') return;
+// Capture phase so this runs before OrbitControls reads enableRotate
+window.addEventListener('pointerdown', e => {
+  if (e.target.tagName !== 'CANVAS' || e.button !== 0) return;
   mouseDownPos = { x: e.clientX, y: e.clientY };
   isDragging = true;
-});
+  roadStart = getHitCell(e);
+  lastRoadCell = null;
+  // With the road tool, left-drag paints roads instead of rotating the camera
+  controls.enableRotate = selectedTool !== 'road';
+}, true);
 
-window.addEventListener('mouseup', e => {
+window.addEventListener('pointerup', e => {
+  if (!isDragging || e.button !== 0) return;
   isDragging = false;
+  controls.enableRotate = true;
+  if (selectedTool === 'road' && lastRoadCell) {
+    // Drag-painting: finish at the release point
+    const cell = getHitCell(e);
+    if (cell) paintRoadTo(cell);
+    return;
+  }
   if (Math.abs(e.clientX - mouseDownPos.x) > 5 || Math.abs(e.clientY - mouseDownPos.y) > 5) return;
   const cell = getHitCell(e);
   if (!cell) return;
