@@ -45,7 +45,6 @@
  */
 import { ZONE_DEF } from './constants.js';
 import { state, getTile, tileKey } from './state.js';
-import { getMat } from './meshes.js';
 import { updateHUD, showAlert } from './ui.js';
 import { getLevel } from './levels.js';
 
@@ -68,11 +67,7 @@ export function updatePower() {
 
   for (const k in state.tiles) {
     const t = state.tiles[k];
-    if (!t.mesh || t.type === 'road' || t.type === 'power') continue;
-    const tint = t.powered ? ZONE_DEF[t.type].color : 0xe74c3c;
-    t.mesh.traverse(c => {
-      if (c.isMesh && c.material?.color) c.material = getMat(tint);
-    });
+    t.mesh?.userData.setPowered?.(t.powered);
   }
 }
 
