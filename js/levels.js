@@ -11,6 +11,13 @@
  *   id, name, description, era, startMoney
  *   goals:       { pop, happiness, jobs?, money? }
  *   constraints: { costMult, taxCapPct, powerRadius, budgetDrain }
+ *     budgetDrain is the yearly upkeep once the city reaches its population
+ *     goal; it scales with population so a brand-new city isn't drained.
+ *
+ * Balance: the 24×24 grid tops out around 3,700 pop at power radius 6,
+ * ~3,150 at radius 3 and ~2,950 at radius 2 (dense test layouts run through
+ * simulation.js). Goals stay at or below ~78% of that ceiling, and
+ * startMoney always covers a starter kit (plant, roads, a few zones).
  *   hint
  */
 
@@ -92,37 +99,37 @@ export const LEVELS = [
      'Parks cap happiness bonus at +30. Spread them out.'),
 
   lv(14, 'Commerce Boom',   'Commercial zones are your main income source.',
-     2, 8000,  { pop:650, happiness:63, jobs:400 },
+     2, 8500,  { pop:650, happiness:63, jobs:400 },
      { costMult:1.35, taxCapPct:12, powerRadius:5, budgetDrain:300 },
      'More commercial = more jobs and more tax income.'),
 
   lv(15, 'Mid-City Blues',  'Maintenance costs bite. Stay in the black.',
-     2, 8000,  { pop:700, happiness:63, jobs:430, money:3000 },
+     2, 8500,  { pop:700, happiness:63, jobs:430, money:3000 },
      { costMult:1.35, taxCapPct:10, powerRadius:5, budgetDrain:350 },
      'Tax cap drops to 10%. You need volume, not rate.'),
 
   lv(16, 'Power Grid',      'Multiple power plants required.',
-     2, 7500,  { pop:760, happiness:63, jobs:460 },
+     2, 8500,  { pop:760, happiness:63, jobs:460 },
      { costMult:1.4, taxCapPct:10, powerRadius:4, budgetDrain:380 },
      'Power radius is 4. You\'ll need at least 4 plants.'),
 
   lv(17, 'Urban Sprawl',    'The city spreads to every corner.',
-     2, 7500,  { pop:820, happiness:63, jobs:500 },
+     2, 8500,  { pop:820, happiness:63, jobs:500 },
      { costMult:1.4, taxCapPct:10, powerRadius:4, budgetDrain:420 },
      'Fill the grid efficiently — no wasted tiles.'),
 
   lv(18, 'Civic Expansion', 'Government offices in every district.',
-     2, 7000,  { pop:880, happiness:65, jobs:540 },
+     2, 9000,  { pop:880, happiness:65, jobs:540 },
      { costMult:1.45, taxCapPct:10, powerRadius:4, budgetDrain:460 },
      'Government offices provide 15 jobs each — great value.'),
 
   lv(19, 'Recession Watch', 'Economic pressure. Keep reserves high.',
-     2, 7000,  { pop:940, happiness:65, jobs:580, money:5000 },
+     2, 9000,  { pop:940, happiness:65, jobs:580, money:5000 },
      { costMult:1.45, taxCapPct:10, powerRadius:4, budgetDrain:500 },
      'You need $5,000 in reserve. Don\'t overspend on buildings.'),
 
   lv(20, 'Expansion\'s End','Complete the expansion era.',
-     2, 7000,  { pop:1000, happiness:65, jobs:620, money:5000 },
+     2, 9000,  { pop:1000, happiness:65, jobs:620, money:5000 },
      { costMult:1.5, taxCapPct:10, powerRadius:4, budgetDrain:550 },
      'Hit 1,000 population for the first time. Plan carefully.'),
 
@@ -130,52 +137,52 @@ export const LEVELS = [
   //  ERA 3 — INDUSTRIAL  (Lv 21–30)
   // ══════════════════════════════════════════════
   lv(21, 'Factory District','Industry dominates. Pollution hits happiness.',
-     3, 7000,  { pop:1060, happiness:63, jobs:680 },
+     3, 9000,  { pop:1060, happiness:63, jobs:680 },
      { costMult:1.5, taxCapPct:10, powerRadius:4, budgetDrain:600 },
      'Balance industrial zones with parks to offset happiness loss.'),
 
   lv(22, 'Smoke & Steel',   'Heavy industry, tight budgets.',
-     3, 6500,  { pop:1120, happiness:63, jobs:740 },
+     3, 9500,  { pop:1120, happiness:63, jobs:740 },
      { costMult:1.55, taxCapPct:10, powerRadius:4, budgetDrain:650 },
      'Industrial zones give 35 jobs — cluster them near power.'),
 
   lv(23, 'Worker\'s City',  'Jobs for everyone. Unemployment must stay low.',
-     3, 6500,  { pop:1180, happiness:64, jobs:800 },
+     3, 9500,  { pop:1180, happiness:64, jobs:800 },
      { costMult:1.55, taxCapPct:9, powerRadius:4, budgetDrain:700 },
      'Keep jobs ≥ population to avoid happiness penalty.'),
 
   lv(24, 'Power Shortage',  'Aging grid. Power radius shrinks further.',
-     3, 6500,  { pop:1240, happiness:64, jobs:840 },
+     3, 10000,  { pop:1240, happiness:64, jobs:840 },
      { costMult:1.6, taxCapPct:9, powerRadius:3, budgetDrain:750 },
      'Power radius is now 3. You need many more plants.'),
 
   lv(25, 'Halfway There',   'The midpoint. A true test of planning.',
-     3, 6000,  { pop:1300, happiness:65, jobs:880, money:6000 },
+     3, 10000,  { pop:1300, happiness:65, jobs:880, money:6000 },
      { costMult:1.6, taxCapPct:9, powerRadius:3, budgetDrain:800 },
      'Level 25 milestone. Keep $6,000 reserve while growing.'),
 
   lv(26, 'Dense Zoning',    'Every tile must earn its place.',
-     3, 6000,  { pop:1380, happiness:65, jobs:930 },
+     3, 10000,  { pop:1380, happiness:65, jobs:930 },
      { costMult:1.65, taxCapPct:9, powerRadius:3, budgetDrain:850 },
      'Mix zone types in tight clusters for maximum efficiency.'),
 
   lv(27, 'Tax Revolt',      'Citizens demand lower taxes.',
-     3, 6000,  { pop:1460, happiness:66, jobs:980 },
+     3, 10000,  { pop:1460, happiness:66, jobs:980 },
      { costMult:1.65, taxCapPct:8, powerRadius:3, budgetDrain:900 },
      'Tax cap is 8%. You need a very large population to stay solvent.'),
 
   lv(28, 'Infrastructure',  'Maintenance costs are severe.',
-     3, 5500,  { pop:1540, happiness:66, jobs:1030 },
+     3, 10500,  { pop:1540, happiness:66, jobs:1030 },
      { costMult:1.7, taxCapPct:8, powerRadius:3, budgetDrain:1000 },
-     'Drain is $1,000/tick. Build commercial zones for income fast.'),
+     'Upkeep climbs to $1,000/yr. Build commercial zones for income fast.'),
 
   lv(29, 'City of Schools', 'Education is the key to faster growth.',
-     3, 5500,  { pop:1620, happiness:67, jobs:1080 },
+     3, 10500,  { pop:1620, happiness:67, jobs:1080 },
      { costMult:1.7, taxCapPct:8, powerRadius:3, budgetDrain:1050 },
      'Schools near residential clusters accelerate growth significantly.'),
 
   lv(30, 'Industrial Peak', 'Complete the industrial era.',
-     3, 5500,  { pop:1700, happiness:67, jobs:1130, money:7000 },
+     3, 10500,  { pop:1700, happiness:67, jobs:1130, money:7000 },
      { costMult:1.75, taxCapPct:8, powerRadius:3, budgetDrain:1100 },
      'Hit 1,700 population. Keep $7,000 reserve. Plan every tile.'),
 
@@ -183,107 +190,107 @@ export const LEVELS = [
   //  ERA 4 — METROPOLIS  (Lv 31–40)
   // ══════════════════════════════════════════════
   lv(31, 'Megacity Rising', 'The city becomes a true metropolis.',
-     4, 5500,  { pop:1800, happiness:67, jobs:1200 },
+     4, 10500,  { pop:1740, happiness:67, jobs:1150 },
      { costMult:1.75, taxCapPct:8, powerRadius:3, budgetDrain:1150 },
      'You\'re in the endgame. Every zone placement matters.'),
 
   lv(32, 'Park Network',    'A city-wide park system boosts morale.',
-     4, 5000,  { pop:1900, happiness:68, jobs:1260 },
+     4, 11000,  { pop:1780, happiness:68, jobs:1170 },
      { costMult:1.8, taxCapPct:8, powerRadius:3, budgetDrain:1200 },
      'Parks cap at +30 happiness. Spread them across districts.'),
 
   lv(33, 'Civic Centre',    'Government offices anchor each district.',
-     4, 5000,  { pop:2000, happiness:68, jobs:1320 },
+     4, 11000,  { pop:1820, happiness:68, jobs:1200 },
      { costMult:1.8, taxCapPct:8, powerRadius:3, budgetDrain:1250 },
      'Government offices: 15 jobs + 8 happiness. Excellent ROI.'),
 
   lv(34, 'Power Web',       'A dense power grid is essential.',
-     4, 5000,  { pop:2100, happiness:68, jobs:1380 },
+     4, 11500,  { pop:1860, happiness:68, jobs:1230 },
      { costMult:1.85, taxCapPct:7, powerRadius:3, budgetDrain:1300 },
-     'Tax cap drops to 7%. You need 2,100 residents to compensate.'),
+     'Tax cap drops to 7%. Schools add $10 tax per covered resident — use them.'),
 
   lv(35, 'Deep Recession',  'Economic crisis. Survive the drain.',
-     4, 4500,  { pop:2200, happiness:68, jobs:1440, money:8000 },
+     4, 11500,  { pop:1900, happiness:68, jobs:1250, money:8000 },
      { costMult:1.85, taxCapPct:7, powerRadius:3, budgetDrain:1400 },
-     'Drain is $1,400/tick. Build income zones before anything else.'),
+     'Upkeep climbs to $1,400/yr. Build income zones before anything else.'),
 
   lv(36, 'Urban Density',   'Pack the grid as tightly as possible.',
-     4, 4500,  { pop:2320, happiness:69, jobs:1510 },
+     4, 11500,  { pop:1940, happiness:69, jobs:1280 },
      { costMult:1.9, taxCapPct:7, powerRadius:3, budgetDrain:1450 },
      'Residential + school clusters are the most efficient combo.'),
 
   lv(37, 'Job Market',      'Employment must keep pace with population.',
-     4, 4500,  { pop:2440, happiness:69, jobs:1600 },
+     4, 11500,  { pop:1980, happiness:69, jobs:1310 },
      { costMult:1.9, taxCapPct:7, powerRadius:3, budgetDrain:1500 },
      'Industrial zones give the most jobs. Use them heavily.'),
 
   lv(38, 'Happiness Drive', 'Citizens demand quality of life.',
-     4, 4000,  { pop:2560, happiness:70, jobs:1680 },
+     4, 12000,  { pop:2020, happiness:70, jobs:1330 },
      { costMult:1.95, taxCapPct:7, powerRadius:3, budgetDrain:1600 },
      'Parks + government offices are your happiness tools.'),
 
   lv(39, 'Budget Crisis',   'Costs are near maximum. Efficiency is everything.',
-     4, 4000,  { pop:2680, happiness:70, jobs:1760, money:8000 },
+     4, 12000,  { pop:2060, happiness:70, jobs:1360, money:8000 },
      { costMult:1.95, taxCapPct:6, powerRadius:3, budgetDrain:1700 },
      'Tax cap is 6%. You need massive population to stay solvent.'),
 
   lv(40, 'Metropolis Peak', 'Complete the metropolis era.',
-     4, 4000,  { pop:2800, happiness:70, jobs:1840, money:10000 },
+     4, 12000,  { pop:2100, happiness:70, jobs:1390, money:10000 },
      { costMult:2.0, taxCapPct:6, powerRadius:3, budgetDrain:1800 },
-     'Costs are double base. Hit 2,800 pop and keep $10,000 reserve.'),
+     'Costs are double base. Hit 2,100 pop and keep $10,000 reserve.'),
 
   // ══════════════════════════════════════════════
   //  ERA 5 — UTOPIA  (Lv 41–50)
   // ══════════════════════════════════════════════
   lv(41, 'Utopia Begins',   'The final era. Near-impossible constraints.',
-     5, 4000,  { pop:2950, happiness:70, jobs:1940 },
+     5, 12000,  { pop:2140, happiness:70, jobs:1410 },
      { costMult:2.0, taxCapPct:6, powerRadius:3, budgetDrain:1900 },
      'Every tile must be optimised. No room for waste.'),
 
   lv(42, 'Perfect Grid',    'Design the most efficient city layout.',
-     5, 3500,  { pop:3100, happiness:71, jobs:2040 },
+     5, 12500,  { pop:2180, happiness:71, jobs:1440 },
      { costMult:2.05, taxCapPct:6, powerRadius:3, budgetDrain:2000 },
      'Cluster: power plant → roads → residential + school + park.'),
 
   lv(43, 'Maximum Density', 'Fill every cell with purpose.',
-     5, 3500,  { pop:3260, happiness:71, jobs:2150 },
+     5, 12500,  { pop:2220, happiness:71, jobs:1470 },
      { costMult:2.05, taxCapPct:6, powerRadius:3, budgetDrain:2100 },
      'Industrial zones near power plants, residential near schools.'),
 
   lv(44, 'Civic Utopia',    'Government and education for all.',
-     5, 3500,  { pop:3420, happiness:72, jobs:2260 },
+     5, 13000,  { pop:2260, happiness:72, jobs:1490 },
      { costMult:2.1, taxCapPct:5, powerRadius:3, budgetDrain:2200 },
-     'Tax cap is 5%. You need 3,400+ residents to break even.'),
+     'Tax cap is 5%. School coverage is your biggest income source now.'),
 
   lv(45, 'Green Utopia',    'Parks in every district. Maximum happiness.',
-     5, 3000,  { pop:3580, happiness:73, jobs:2370 },
+     5, 13000,  { pop:2300, happiness:73, jobs:1520 },
      { costMult:2.1, taxCapPct:5, powerRadius:3, budgetDrain:2300 },
      'Happiness goal is 73%. Parks + gov offices are essential.'),
 
   lv(46, 'Power Mastery',   'Tiny power radius. Dense plant network.',
-     5, 3000,  { pop:3740, happiness:73, jobs:2480, money:10000 },
+     5, 13000,  { pop:2160, happiness:73, jobs:1430, money:10000 },
      { costMult:2.15, taxCapPct:5, powerRadius:2, budgetDrain:2400 },
-     'Power radius is 2. You need a plant every 4 tiles.'),
+     'Power radius is 2 — each plant only reaches 2 tiles. Plan a dense grid.'),
 
   lv(47, 'Economic Titan',  'Massive reserves required.',
-     5, 3000,  { pop:3900, happiness:73, jobs:2600, money:12000 },
+     5, 13000,  { pop:2190, happiness:73, jobs:1450, money:12000 },
      { costMult:2.15, taxCapPct:5, powerRadius:2, budgetDrain:2500 },
      'Keep $12,000 in reserve while hitting all other goals.'),
 
   lv(48, 'The Final Push',  'Almost there. Push every stat to the limit.',
-     5, 2500,  { pop:4100, happiness:74, jobs:2750, money:12000 },
+     5, 13500,  { pop:2220, happiness:74, jobs:1470, money:12000 },
      { costMult:2.2, taxCapPct:5, powerRadius:2, budgetDrain:2700 },
      'Costs are 2.2×. Plan every purchase before you make it.'),
 
   lv(49, 'Legendary City',  'One step from perfection.',
-     5, 2500,  { pop:4300, happiness:75, jobs:2900, money:15000 },
+     5, 13500,  { pop:2250, happiness:75, jobs:1480, money:15000 },
      { costMult:2.2, taxCapPct:5, powerRadius:2, budgetDrain:2900 },
      'Keep $15,000 reserve. Happiness must hit 75%. Near impossible.'),
 
   lv(50, 'Utopia',          'The ultimate challenge. Build the perfect city.',
-     5, 2000,  { pop:4500, happiness:75, jobs:3000, money:20000 },
+     5, 13500,  { pop:2300, happiness:75, jobs:1520, money:20000 },
      { costMult:2.25, taxCapPct:4, powerRadius:2, budgetDrain:3000 },
-     'Tax cap 4%, power radius 2, drain $3,000/tick. Legendary.'),
+     'Tax cap 4%, power radius 2, upkeep up to $3,000/yr. Legendary.'),
 ];
 
 export function getLevel(id) {

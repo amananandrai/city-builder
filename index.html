@@ -16,60 +16,121 @@
     </div>
   </div>
 
-  <!-- ══ WELCOME ══ -->
+  <!-- ══ WELCOME / HOW TO PLAY (step-by-step guide) ══ -->
   <div id="welcome">
     <div id="welcome-card">
-      <h1>🏙 City Builder</h1>
-      <p class="subtitle">Zone land, build roads, power your city, and grow a thriving population across 10 levels.</p>
+      <div id="guide-steps">
 
-      <h3>Zone Types</h3>
-      <div class="zone-pills">
-        <span class="zone-pill res">🏠 Residential — +15 pop · $400</span>
-        <span class="zone-pill com">🏪 Commercial — +20 jobs · $600</span>
-        <span class="zone-pill ind">🏭 Industrial — +35 jobs · $700</span>
-        <span class="zone-pill rd">🛣 Road — connects zones · $80</span>
-        <span class="zone-pill pw">⚡ Power Plant — radius 6 · $1,500</span>
-        <span class="zone-pill sc">🏫 School — +growth nearby · $900</span>
-        <span class="zone-pill pk">🌳 Park — +happiness · $350</span>
-        <span class="zone-pill gv">🏛 Gov. Office — +happiness · $1,200</span>
-        <span class="zone-pill po">🚔 Police — -crime · $1,000</span>
-        <span class="zone-pill fi">🚒 Fire Station — -fire risk · $1,100</span>
+        <section class="guide-step" data-title="Welcome">
+          <div class="guide-hero">🏙</div>
+          <h1>City Builder</h1>
+          <p class="subtitle">Turn an empty field into a thriving city. Each level gives you a set of goals — meet them all to unlock the next one.</p>
+          <div class="era-strip">
+            <div class="era-chip" style="--c:#5dade2"><b>Pioneer</b><span>Lv 1–10</span></div>
+            <div class="era-chip" style="--c:#2ecc71"><b>Expansion</b><span>Lv 11–20</span></div>
+            <div class="era-chip" style="--c:#e67e22"><b>Industrial</b><span>Lv 21–30</span></div>
+            <div class="era-chip" style="--c:#9b59b6"><b>Metropolis</b><span>Lv 31–40</span></div>
+            <div class="era-chip" style="--c:#e74c3c"><b>Utopia</b><span>Lv 41–50</span></div>
+          </div>
+          <p class="guide-note"><b>50 levels</b> across 5 eras. Later eras raise costs, shrink power range, lower the tax cap and add yearly upkeep.</p>
+        </section>
+
+        <section class="guide-step" data-title="Power">
+          <div class="guide-hero">⚡</div>
+          <h2>1 · Power comes first</h2>
+          <p>Every building needs electricity. A <b>Power Plant</b> powers every tile within its range — you'll see the range highlighted in yellow before you place it.</p>
+          <div class="mini-grid power-demo" aria-hidden="true"></div>
+          <p class="guide-note">Buildings outside the range show a red <span class="badge-demo">⚡</span> badge and only work at reduced output.</p>
+        </section>
+
+        <section class="guide-step" data-title="Roads">
+          <div class="guide-hero">🛣</div>
+          <h2>2 · Connect with roads</h2>
+          <p>A building is only fully active when it <b>touches a road</b>. Select the Road tool and <b>click-and-drag</b> to draw streets. Roads join up automatically.</p>
+          <div class="eff-table">
+            <div><span>⚡ + 🛣</span><b class="ok">100%</b></div>
+            <div><span>⚡ only</span><b>75%</b></div>
+            <div><span>🛣 only</span><b>50%</b></div>
+            <div><span>neither</span><b class="bad">25%</b></div>
+          </div>
+        </section>
+
+        <section class="guide-step" data-title="Zones">
+          <div class="guide-hero">🏠🏪🏭</div>
+          <h2>3 · Zone for people and jobs</h2>
+          <div class="zone-pills">
+            <span class="zone-pill res">🏠 Residential — up to 15 residents</span>
+            <span class="zone-pill com">🏪 Commercial — 20 jobs</span>
+            <span class="zone-pill ind">🏭 Industrial — 35 jobs</span>
+          </div>
+          <p>Residents move in a little every year. Keep <b>jobs close to population</b> — unemployed residents make the whole city unhappy.</p>
+        </section>
+
+        <section class="guide-step" data-title="Services">
+          <div class="guide-hero">🏫🌳🏛</div>
+          <h2>4 · Add services</h2>
+          <div class="svc-list">
+            <div><span>🏫</span><b>School</b> Homes nearby grow faster. With no school, growth is halved.</div>
+            <div><span>🌳</span><b>Park</b> +happiness, and nearby homes hold 20% more people.</div>
+            <div><span>🏛</span><b>Gov. Office</b> +happiness, softens unemployment.</div>
+            <div><span>🚔</span><b>Police</b> Cuts crime, which otherwise lowers happiness and taxes.</div>
+            <div><span>🚒</span><b>Fire Station</b> Prevents costly fires in bigger cities.</div>
+          </div>
+          <p class="guide-note">Each service covers a radius — it's highlighted while you place it.</p>
+        </section>
+
+        <section class="guide-step" data-title="Time & money">
+          <div class="guide-hero">📅💰</div>
+          <h2>5 · Time and money</h2>
+          <p>Every <b>year</b> (a few seconds) residents move in, you collect <b>taxes</b> and pay <b>upkeep</b>. Set the tax rate in the toolbar — higher brings more money but each level caps it.</p>
+          <p>Use <b>⏸ / ▶ / ⏩</b> in the bottom bar to pause or speed up time. The <b>Advisor</b> panel on the left always tells you the best next step.</p>
+          <div class="win-cond"><span>🎯</span> Meet every goal in the Objectives panel at the same time to complete the level.</div>
+        </section>
+
       </div>
 
-      <h3>Rules</h3>
-      <div class="rules-grid">
-        <div class="rule-item"><span class="rule-icon">🔌</span>
-          <div class="rule-text"><strong>Power first</strong>Zones need power to be fully active. Unpowered buildings show a ⚡ warning badge.</div>
-        </div>
-        <div class="rule-item"><span class="rule-icon">🛣</span>
-          <div class="rule-text"><strong>Road access</strong>Zones adjacent to a road get a +50% productivity bonus.</div>
-        </div>
-        <div class="rule-item"><span class="rule-icon">⚖️</span>
-          <div class="rule-text"><strong>Balance jobs</strong>Unemployment lowers happiness. Mix zone types.</div>
-        </div>
-        <div class="rule-item"><span class="rule-icon">💰</span>
-          <div class="rule-text"><strong>Tax income</strong>Earn taxes each year. Higher levels cap your tax rate.</div>
-        </div>
-        <div class="rule-item"><span class="rule-icon">📈</span>
-          <div class="rule-text"><strong>Growth</strong>Population grows each year in powered, road-connected zones.</div>
-        </div>
-        <div class="rule-item"><span class="rule-icon">�</span>
-          <div class="rule-text"><strong>Maintenance</strong>Higher levels drain money each tick. Keep income positive.</div>
-        </div>
+      <div id="guide-nav">
+        <button id="guide-skip" class="btn-ghost">Skip</button>
+        <div id="guide-dots"></div>
+        <button id="guide-back" class="btn-ghost">← Back</button>
+        <button id="start-btn" class="btn-primary">Next →</button>
       </div>
-
-      <div class="win-cond"><span>🎯</span> Meet each level's population, jobs, and happiness goals to advance.</div>
-      <button id="start-btn">Choose Level →</button>
     </div>
   </div>
 
   <!-- ══ LEVEL SELECT ══ -->
   <div id="level-select">
     <div id="level-select-card">
-      <h2>Select Level</h2>
-      <p class="ls-sub">Complete each level to unlock the next. Progress is saved.</p>
+      <div class="ls-head">
+        <div>
+          <h2>Select Level</h2>
+          <p class="ls-sub">Complete a level to unlock the next. Progress is saved in this browser.</p>
+        </div>
+        <button id="ls-continue" class="btn-primary"></button>
+      </div>
       <div id="level-grid"></div>
-      <button id="ls-back-btn">← Back</button>
+      <div class="ls-foot">
+        <button id="ls-back-btn" class="btn-ghost">← How to play</button>
+        <div id="ls-progress"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LEVEL BRIEFING (shown before each level; time starts on "Start") ══ -->
+  <div id="briefing">
+    <div id="briefing-card">
+      <div id="br-era"></div>
+      <div id="br-name"></div>
+      <div id="br-desc"></div>
+      <h3>Goals — reach all of them together</h3>
+      <div id="br-goals"></div>
+      <h3>This level's rules</h3>
+      <div id="br-rules"></div>
+      <div id="br-hint"></div>
+      <div class="br-actions">
+        <button id="br-levels" class="btn-ghost">← Levels</button>
+        <button id="br-start" class="btn-primary">Start building →</button>
+      </div>
     </div>
   </div>
 
@@ -77,18 +138,14 @@
   <div id="level-complete">
     <div id="lc-card">
       <div id="lc-title">🎉 Level Complete!</div>
+      <div id="lc-stats"></div>
       <div id="lc-sub"></div>
-      <button id="lc-next-btn">Next Level →</button>
+      <div class="lc-actions">
+        <button id="lc-levels-btn" class="btn-ghost">Level select</button>
+        <button id="lc-stay-btn" class="btn-ghost">Keep building</button>
+        <button id="lc-next-btn" class="btn-primary">Next Level →</button>
+      </div>
     </div>
-  </div>
-
-  <!-- ══ LEVEL BANNER (auto-hides after 5s) ══ -->
-  <div id="level-banner">
-    <div id="lb-num">Level 1 of 10</div>
-    <div id="lb-name">Empty Lot</div>
-    <div id="lb-desc"></div>
-    <div id="lb-goals"></div>
-    <div id="lb-constraints"></div>
   </div>
 
   <!-- ══ TOOLBAR ══ -->
@@ -110,19 +167,56 @@
     <div class="sep"></div>
     <button class="tool-btn" data-tool="demolish"><span>🔨</span> Demolish</button>
     <div class="sep"></div>
-    <div id="tax-wrap">
-      <label>Tax %</label>
+    <div id="tax-wrap" title="Tax rate: higher earns more per year. Capped per level.">
+      <label for="tax-rate">Tax %</label>
       <input id="tax-rate" type="number" min="0" max="20" value="8"/>
+      <span id="tax-cap"></span>
+    </div>
+    <div id="menu-wrap">
+      <button id="menu-btn" title="Menu">☰</button>
+      <div id="menu">
+        <button data-menu="guide">📖 How to play</button>
+        <button data-menu="briefing">🎯 Level goals</button>
+        <button data-menu="restart">↺ Restart level</button>
+        <button data-menu="levels">🗺 Level select</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ OBJECTIVES + ADVISOR ══ -->
+  <div id="side-panel">
+    <div id="objectives">
+      <div class="panel-head">
+        <span id="obj-level"></span>
+        <button id="obj-info" title="Level goals and rules">ⓘ</button>
+      </div>
+      <div id="obj-rows"></div>
+    </div>
+    <div id="advisor">
+      <div class="panel-head"><span>🧭 Advisor</span><span id="adv-step"></span></div>
+      <div id="adv-title"></div>
+      <div id="adv-text"></div>
+      <button id="adv-tool" class="btn-small"></button>
     </div>
   </div>
 
   <!-- ══ HUD ══ -->
   <div id="hud">
+    <div id="time-ctrl">
+      <button data-speed="0" title="Pause (Space)">⏸</button>
+      <button data-speed="1" title="Normal speed" class="active">▶</button>
+      <button data-speed="2" title="Fast">⏩</button>
+      <button data-speed="3" title="Fastest">⏭</button>
+    </div>
+    <div class="stat year" title="Each year residents move in and taxes are collected">
+      <div>📅 Yr <span id="s-year">1</span></div>
+      <div id="year-bar"><div id="year-fill"></div></div>
+    </div>
+    <div class="hud-sep"></div>
     <div class="stat">👥 <span id="s-pop">0</span><span id="s-pop-goal" class="goal-suffix">/30</span></div>
-    <div class="stat">💼 Jobs <span id="s-jobs">0</span></div>
-    <div class="stat money">💰 $<span id="s-money">10,000</span></div>
-    <div class="stat power">⚡ <span id="s-power">0</span>/<span id="s-pmax">0</span></div>
-    <div class="stat">📅 Yr <span id="s-year">1</span></div>
+    <div class="stat">💼 <span id="s-jobs">0</span></div>
+    <div class="stat money" title="Cash (net change per year)">💰 $<span id="s-money">10,000</span> <span id="s-net" class="net"></span></div>
+    <div class="stat power" title="Power used / supplied">⚡ <span id="s-power">0</span>/<span id="s-pmax">0</span></div>
     <div class="stat happy">😊 <span id="s-happy">100</span>%</div>
     <div class="hud-sep"></div>
     <div class="stat svc school-stat" title="Active Schools">🏫 <span id="s-schools">0</span></div>
@@ -132,25 +226,10 @@
     <div class="stat svc fire-stat"   title="Fire Stations">🚒 <span id="s-fire">0</span></div>
   </div>
 
+  <div id="paused-tag">⏸ Paused — press Space or ▶ to resume</div>
   <div id="alerts"></div>
 
-  <!-- ══ LEGEND ══ -->
-  <div id="legend">
-    <h4>Zone Types</h4>
-    <div class="leg-row residential"><div class="leg-dot"></div> Residential (+15 pop)</div>
-    <div class="leg-row commercial"><div class="leg-dot"></div> Commercial (+20 jobs)</div>
-    <div class="leg-row industrial"><div class="leg-dot"></div> Industrial (+35 jobs)</div>
-    <div class="leg-row road"><div class="leg-dot"></div> Road (drag to draw)</div>
-    <div class="leg-row power"><div class="leg-dot"></div> Power Plant</div>
-    <div class="leg-row nopower"><div class="leg-dot"></div> No Power (half output)</div>
-    <div class="leg-row school"><div class="leg-dot"></div> School (+growth r=4, +tax)</div>
-    <div class="leg-row park"><div class="leg-dot"></div> Park (+happiness, +cap r=3)</div>
-    <div class="leg-row government"><div class="leg-dot"></div> Gov. Office (+happiness, -unemp penalty r=5)</div>
-    <div class="leg-row police"><div class="leg-dot"></div> Police Station (-crime, +happiness r=5)</div>
-    <div class="leg-row fire"><div class="leg-dot"></div> Fire Station (-fire risk, +happiness r=5)</div>
-  </div>
-
-  <!-- ══ TOOLTIP ══ -->
+  <!-- ══ TOOL TOOLTIP ══ -->
   <div id="tooltip">
     <div class="tt-title" id="tt-title">Building</div>
     <div class="tt-row">Cost <span id="tt-cost">—</span></div>
@@ -159,6 +238,9 @@
     <div class="tt-row">Tax/yr <span id="tt-tax">—</span></div>
     <div class="tt-row">Effect <span id="tt-effect">—</span></div>
   </div>
+
+  <!-- ══ CURSOR INFO (what will happen on click / what is here) ══ -->
+  <div id="cursor-info"></div>
 
   <script type="importmap">
   {
