@@ -1,7 +1,10 @@
 /**
  * Central game state.
  *
- * currentLevel – active level id (1–10)
+ * currentLevel – active level id (1–50)
+ * running      – the level briefing was dismissed and years are ticking
+ * paused/speed – player time controls (speed is 1, 2 or 3)
+ * yearClock    – seconds elapsed in the current year
  * tiles        – map of "x,z" -> TileData
  *   TileData: { type, mesh, powered, roadConnected, population }
  */
@@ -13,6 +16,10 @@ export const state = {
   tiles:        {},
   cars:         [],
   won:          false,
+  running:      false,
+  paused:       false,
+  speed:        1,
+  yearClock:    0,
 };
 
 export const tileKey = (x, z) => `${x},${z}`;
@@ -28,4 +35,7 @@ export function resetState(level) {
   state.tiles   = {};
   state.cars    = [];
   state.won     = false;
+  state.running = false;
+  state.paused  = false;
+  state.yearClock = 0;
 }

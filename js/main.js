@@ -8,9 +8,10 @@ import { buildTileMesh, animateTile, buildScenery, disposeTile } from './meshes.
 import { vehicle, randomTrafficKind } from './props.js';
 import { grassTexture, skyTexture } from './textures.js';
 import { updatePower, updateRoadConnectivity, calcStats, tick } from './simulation.js';
-import { updateHUD, showAlert, showTooltip, initToolbar, initWelcome,
-         initLevelComplete, buildLevelSelect, registerStartLevel } from './ui.js';
-import { getLevel, ERAS } from './levels.js';
+import { updateHUD, showAlert, initToolbar, initWelcome, initLevelComplete, registerGame,
+         showBriefing, setActiveTool, setTaxCap, renderTimeControls, renderYearProgress,
+         modalOpen, progress } from './ui.js';
+import { getLevel } from './levels.js';
 import { preloadAssets, preloadAudio, playPlacement, playRemoval } from './assets.js';
 
 // ═══════════════════════════════════════════════
@@ -233,6 +234,7 @@ function placeTile(gx, gz, type, quiet = false) {
   updatePower();
   updateRoadConnectivity();
   updateHUD(calcStats());
+  refreshHover();
 }
 
 function demolishTile(gx, gz) {
@@ -245,7 +247,7 @@ function demolishTile(gx, gz) {
   updateRoadConnectivity();
   updateHUD(calcStats());
   playRemoval();
-  showAlert('🔨 Demolished', 'info');
+  refreshHover();
 }
 
 // ═══════════════════════════════════════════════
@@ -294,11 +296,11 @@ function laneWaypoints(path) {
 }
 
 function spawnCar() {
-  if (state.cars.length >= MAX_CARS) return;
   const roads = Object.entries(state.tiles)
     .filter(([, t]) => t.type === 'road')
     .map(([k]) => k.split(',').map(Number));
-  if (roads.length < 3) return;
+  // Traffic scales with the road network so short streets don't jam
+  if (roads.length < 3 || state.cars.length >= Math.min(MAX_CARS, Math.floor(roads.length / 3))) return;
 
   const path = randomRoadPath(roads[Math.floor(Math.random() * roads.length)]);
   if (!path) return;
@@ -380,20 +382,114 @@ function getHitCell(event) {
   return gridFromWorld(hits[0].point.x, hits[0].point.z);
 }
 
-window.addEventListener('pointermove', e => {
-  const cell = getHitCell(e);
-  if (cell) {
-    hoverMesh.position.copy(worldPos(cell.x, cell.z)).setY(0.04);
-    hoverMesh.visible = true;
-    const occupied = !!getTile(cell.x, cell.z);
-    hoverMesh.material.color.setHex(
-      selectedTool === 'demolish' ? (occupied ? 0xe74c3c : 0x888888) :
-      occupied ? 0xe67e22 : 0x00ff88
-    );
-    if (isDragging && selectedTool === 'road') paintRoadTo(cell);
-  } else {
-    hoverMesh.visible = false;
+// ── Hover feedback: coverage preview + "what happens if I click" label ──
+const RANGE_MAX = (2 * 6 + 1) ** 2; // largest square any service/plant covers
+const rangeMesh = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(CELL * 0.94, 0.02, CELL * 0.94),
+  new THREE.MeshBasicMaterial({ color: 0xf1c40f, transparent: true, opacity: 0.28, depthWrite: false }),
+  RANGE_MAX
+);
+rangeMesh.count = 0;
+rangeMesh.renderOrder = 1;
+scene.add(rangeMesh);
+
+const cursorInfo = document.getElementById('cursor-info');
+let hoverCell = null;
+let pointer = { x: 0, y: 0 };
+
+/** Cells covered by a power plant (diamond) or service building (square). */
+function coverage(type, gx, gz) {
+  const power = type === 'power';
+  const r = power ? getLevel(state.currentLevel).constraints.powerRadius : ZONE_DEF[type]?.serviceRadius;
+  if (!r) return null;
+  const cells = [];
+  for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    if (power && Math.abs(dx) + Math.abs(dz) > r) continue;
+    const x = gx + dx, z = gz + dz;
+    if (x >= 0 && z >= 0 && x < GRID && z < GRID) cells.push([x, z]);
   }
+  return { cells, r, color: power ? 0xf1c40f : ZONE_DEF[type].color };
+}
+
+function showCoverage(cov) {
+  if (!cov) { rangeMesh.count = 0; return; }
+  const m = new THREE.Matrix4();
+  cov.cells.forEach(([x, z], i) => rangeMesh.setMatrixAt(i, m.makeTranslation(worldPos(x, z).setY(0.035))));
+  rangeMesh.count = cov.cells.length;
+  rangeMesh.material.color.setHex(cov.color);
+  rangeMesh.instanceMatrix.needsUpdate = true;
+}
+
+function isPoweredAt(gx, gz) {
+  const r = getLevel(state.currentLevel).constraints.powerRadius;
+  for (const k in state.tiles) {
+    if (state.tiles[k].type !== 'power') continue;
+    const [px, pz] = k.split(',').map(Number);
+    if (Math.abs(px - gx) + Math.abs(pz - gz) <= r) return true;
+  }
+  return false;
+}
+const touchesRoad = (gx, gz) =>
+  Object.values(NEIGHBOURS).some(([dx, dz]) => getTile(gx + dx, gz + dz)?.type === 'road');
+
+const ok  = t => `<span class="ok">✓ ${t}</span>`;
+const bad = t => `<span class="bad">✗ ${t}</span>`;
+
+function refreshHover() {
+  const cell = hoverCell;
+  if (!cell || !state.running || modalOpen()) {
+    hoverMesh.visible = false; showCoverage(null); cursorInfo.style.display = 'none';
+    return;
+  }
+  const tile = getTile(cell.x, cell.z);
+  const tool = selectedTool;
+  hoverMesh.position.copy(worldPos(cell.x, cell.z)).setY(0.04);
+  hoverMesh.visible = true;
+  hoverMesh.material.color.setHex(
+    tool === 'demolish' ? (tile ? 0xe74c3c : 0x888888) : tile ? 0xe67e22 : 0x00ff88);
+
+  let html;
+  if (tile) {
+    // Describe what is already here
+    const def = ZONE_DEF[tile.type];
+    const lines = [`<b>${def.label}</b>`];
+    if (tile.type === 'residential') lines[0] += ` — ${tile.population}/${def.pop} residents`;
+    if (tile.type !== 'road' && tile.type !== 'power') {
+      lines.push(`${tile.powered ? ok('Power') : bad('No power')} &nbsp; ${tile.roadConnected ? ok('Road') : bad('No road')}`);
+    }
+    if (tool === 'demolish') lines.push('<span class="bad">Click to demolish</span>');
+    else if (tool !== tile.type) lines.push('<span class="dim">Occupied — use 🔨 Demolish first</span>');
+    html = lines.join('<br>');
+    showCoverage(coverage(tile.type, cell.x, cell.z));
+  } else if (tool === 'demolish') {
+    html = '<span class="dim">Nothing to demolish</span>';
+    showCoverage(null);
+  } else {
+    const def = ZONE_DEF[tool];
+    const cost = Math.round(def.cost * getLevel(state.currentLevel).constraints.costMult);
+    const lines = [`<b>${def.label}</b> — ${state.money >= cost ? `$${cost.toLocaleString()}` : bad(`$${cost.toLocaleString()} (can't afford)`)}`];
+    const cov = coverage(tool, cell.x, cell.z);
+    if (tool === 'power') lines.push(`Powers tiles within ${cov.r} steps <span class="dim">(yellow)</span>`);
+    else if (tool === 'road') lines.push('<span class="dim">Click or drag to draw</span>');
+    else {
+      lines.push(`${isPoweredAt(cell.x, cell.z) ? ok('Power') : bad('No power here')} &nbsp; ${touchesRoad(cell.x, cell.z) ? ok('Road') : bad('No road')}`);
+      if (cov) lines.push(`Covers ${cov.r} tiles around it <span class="dim">(highlighted)</span>`);
+    }
+    html = lines.join('<br>');
+    showCoverage(cov);
+  }
+  cursorInfo.innerHTML = html;
+  cursorInfo.style.display = 'block';
+  cursorInfo.style.left = `${Math.min(pointer.x + 16, innerWidth - 250)}px`;
+  cursorInfo.style.top  = `${pointer.y + 18}px`;
+}
+
+window.addEventListener('pointermove', e => {
+  pointer = { x: e.clientX, y: e.clientY };
+  // Only hover the map, not the toolbar/panels on top of it
+  hoverCell = e.target.tagName === 'CANVAS' ? getHitCell(e) : null;
+  if (hoverCell && isDragging && selectedTool === 'road') paintRoadTo(hoverCell);
+  refreshHover();
 });
 
 // Capture phase so this runs before OrbitControls reads enableRotate
@@ -433,60 +529,49 @@ window.addEventListener('resize', () => {
 // ═══════════════════════════════════════════════
 //  LEVEL MANAGEMENT
 // ═══════════════════════════════════════════════
-let tickInterval = null;
+function selectTool(tool) {
+  selectedTool = tool;
+  setActiveTool(tool);
+  refreshHover();
+}
 
+/** Load a level and show its briefing. Time starts when the player clicks Start. */
 function startLevel(id) {
   clearCity();
   state.currentLevel = id;
   resetState(getLevel(id));
-
-  // Unlock this level in localStorage
-  const prev = parseInt(localStorage.getItem('cb_unlocked') || '1');
-  if (id > prev) localStorage.setItem('cb_unlocked', id);
-
-  // Update tax input cap
-  const cap = getLevel(id).constraints.taxCapPct;
-  const taxInput = document.getElementById('tax-rate');
-  taxInput.max   = cap;
-  taxInput.value = state.taxRate;
-
-  // Show level banner
-  showLevelBanner(getLevel(id));
-
-  // Restart tick
-  if (tickInterval) clearInterval(tickInterval);
-  tickInterval = setInterval(tick, TICK_MS);
-
+  progress.unlock(id);
+  setTaxCap(getLevel(id).constraints.taxCapPct);
+  selectTool('power'); // every city starts with a power plant
+  updatePower();
+  updateRoadConnectivity();
   updateHUD(calcStats());
-  showAlert(`📍 ${getLevel(id).hint}`, 'info');
+  showBriefing();
+  renderTimeControls();
 }
 
-function showLevelBanner(level) {
-  const banner = document.getElementById('level-banner');
-  document.getElementById('lb-num').textContent  = `Level ${level.id} of 50 · ${ERAS[level.era].name}`;
-  document.getElementById('lb-name').textContent = level.name;
-  document.getElementById('lb-desc').textContent = level.description;
-
-  // Goals list
-  const g = level.goals;
-  const parts = [`Pop ${g.pop}`];
-  if (g.jobs)  parts.push(`Jobs ${g.jobs}`);
-  if (g.money) parts.push(`Cash $${g.money.toLocaleString()}`);
-  parts.push(`Happiness ${g.happiness}%`);
-  document.getElementById('lb-goals').textContent = 'Goals: ' + parts.join(' · ');
-
-  // Constraints
-  const c = level.constraints;
-  const cons = [`Cost ×${c.costMult}`, `Tax cap ${c.taxCapPct}%`, `Power r=${c.powerRadius}`];
-  if (c.budgetDrain > 0) cons.push(`Drain -$${c.budgetDrain}/yr`);
-  document.getElementById('lb-constraints').textContent = cons.join(' · ');
-
-  banner.style.display = 'flex';
-  setTimeout(() => banner.style.display = 'none', 5000);
+function beginLevel() {
+  state.running = true;
+  state.paused = false;
+  state.speed = 1;
+  renderTimeControls();
+  updateHUD(calcStats());
 }
 
-// Register so ui.js can call it
-registerStartLevel(startLevel);
+/** speed 0 pauses; 1–3 set the game speed. */
+function setSpeed(speed) {
+  if (speed === 0) state.paused = true;
+  else { state.paused = false; state.speed = speed; }
+  renderTimeControls();
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Space' || !state.running || modalOpen() || e.target.tagName === 'INPUT') return;
+  e.preventDefault();
+  setSpeed(state.paused ? state.speed : 0);
+});
+
+registerGame({ startLevel, beginLevel, setSpeed });
 
 // ═══════════════════════════════════════════════
 //  RENDER LOOP
@@ -494,10 +579,23 @@ registerStartLevel(startLevel);
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.1);
+  const rawDt = clock.getDelta();
+  const dt = Math.min(rawDt, 0.1);
   const t  = clock.elapsedTime;
   controls.update();
   updateCars(dt);
+  // Simulation clock: one tick per in-game year, frozen while paused or a
+  // full-screen overlay (briefing, level complete…) is open.
+  if (state.running && !state.paused && !modalOpen()) {
+    state.yearClock += Math.min(rawDt, 0.5) * state.speed; // keep years on time at low FPS
+    const yearLen = TICK_MS / 1000;
+    if (state.yearClock >= yearLen) {
+      state.yearClock -= yearLen;
+      tick();
+    }
+    renderYearProgress();
+  }
+  renderTimeControls();
   for (const k in state.tiles) {
     const m = state.tiles[k].mesh;
     if (m) animateTile(m, t);
@@ -519,11 +617,10 @@ async function boot() {
 
   if (loadEl) loadEl.style.display = 'none';
 
-  initToolbar(tool => { selectedTool = tool; });
-  initWelcome();
-  initLevelComplete(startLevel);
-  showTooltip('residential');
+  initToolbar(tool => { selectedTool = tool; refreshHover(); });
+  initLevelComplete();
   updateHUD(calcStats());
+  initWelcome();
 }
 
 boot();

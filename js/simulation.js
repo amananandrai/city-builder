@@ -29,13 +29,17 @@
  *
  *  FIRE STATION (radius 5)
  *    - Each tick there is a small random chance of a fire event
- *    - Fire risk = 2% base + 1% per 100 industrial tiles (industry = fire hazard)
+ *    - Fire risk = 2% base + 1% per 10 industrial tiles, capped at 12%
  *    - Each active fire station in radius reduces fire risk by 50%
  *    - If a fire occurs in an uncovered zone: that tile loses population
  *      and the player loses money (fire damage cost)
  *    - Without any fire station when pop > 40: fire events can occur
  *    - +4 happiness when active (safety feeling)
  *    - Capped at +12 happiness total from fire stations
+ *
+ *  UPKEEP
+ *    - Level budgetDrain is the yearly upkeep at the population goal; it
+ *      scales with population so a brand-new city isn't drained.
  *
  *  Efficiency multipliers (power + road):
  *    powered + roadConnected → 1.0
@@ -176,13 +180,15 @@ export function growPopulation(maps) {
 
 // ── Fire events ────────────────────────────────────────────────────────────
 // Returns total money lost to fires this tick and list of affected tile keys.
-function processFireEvents(maps) {
+// Fires only start once the city has more than 40 residents.
+function processFireEvents(maps, pop) {
+  if (pop <= 40) return { totalDamage: 0, burnedTiles: [] };
   const { fireCovered } = maps;
   const tiles = Object.entries(state.tiles);
 
   // Count industrial tiles (fire hazard)
   const industrialCount = tiles.filter(([, t]) => t.type === 'industrial').length;
-  const baseFireRisk    = 0.02 + industrialCount * 0.01; // 2% + 1% per industrial tile
+  const baseFireRisk    = Math.min(0.12, 0.02 + industrialCount * 0.001); // 2% + 1% per 10 industrial tiles
 
   let totalDamage = 0;
   const burnedTiles = [];
@@ -346,68 +352,51 @@ export function checkWin(s) {
   );
 }
 
+// ── Money ──────────────────────────────────────────────────────────────────
+/** Yearly tax income for the given stats. */
+export function yearlyIncome(s) {
+  const baseTax        = Math.floor(s.pop * state.taxRate * 0.5 + s.jobs * state.taxRate * 0.3);
+  const schoolTaxBonus = Math.floor(s.schoolCoveredPop * 10);
+  const govTaxMult     = 1 + (s.govCoveredPop / Math.max(1, s.pop)) * 0.15;
+  // Crime reduces tax income
+  const crimeTaxMult   = 1 - (s.crimeData?.taxReductionFrac || 0);
+  return Math.floor((baseTax + schoolTaxBonus) * govTaxMult * crimeTaxMult);
+}
+
+/** Yearly upkeep: the level's budgetDrain, scaled by progress toward the pop goal. */
+export function yearlyUpkeep(s) {
+  const { constraints, goals } = getLevel(state.currentLevel);
+  return Math.round(constraints.budgetDrain * Math.min(1, s.pop / goals.pop));
+}
+
 // ── Annual tick ────────────────────────────────────────────────────────────
 export function tick() {
   const maps = buildServiceMaps();
   growPopulation(maps);
 
-  const level = getLevel(state.currentLevel);
   const s     = calcStats();
 
   // ── Fire events ──────────────────────────────────────────────────────
-  const { totalDamage, burnedTiles } = processFireEvents(maps);
+  const { totalDamage, burnedTiles } = processFireEvents(maps, s.pop);
   if (totalDamage > 0) {
     state.money -= totalDamage;
     showAlert(`🔥 Fire damage! Lost $${totalDamage.toLocaleString()}. Build fire stations!`, 'warn');
   }
 
   // ── Income ───────────────────────────────────────────────────────────
-  const baseTax        = Math.floor(s.pop * state.taxRate * 0.5 + s.jobs * state.taxRate * 0.3);
-  const schoolTaxBonus = Math.floor(s.schoolCoveredPop * 10);
-  const govTaxMult     = 1 + (s.govCoveredPop / Math.max(1, s.pop)) * 0.15;
-  // Crime reduces tax income
-  const crimeTaxMult   = 1 - (s.crimeData?.taxReductionFrac || 0);
-  const income         = Math.floor((baseTax + schoolTaxBonus) * govTaxMult * crimeTaxMult);
-
-  state.money += income - level.constraints.budgetDrain;
+  const wasInDebt = state.money < 0;
+  state.money += yearlyIncome(s) - yearlyUpkeep(s);
   state.year++;
 
   updateHUD(s);
 
-  // ── Alerts ───────────────────────────────────────────────────────────
-  if (s.powerUsed > s.powerMax && s.powerMax > 0)
-    showAlert('⚡ Power shortage! Build more power plants.', 'warn');
-
-  if (s.pop > s.jobs * 1.6 && s.jobs > 0)
-    showAlert('💼 High unemployment — add Commercial or Industrial zones.', 'warn');
-
-  if (state.money < 0)
-    showAlert('💸 You are in debt!', 'warn');
-
-  if (s.activeSchoolCount === 0 && s.pop > 30)
-    showAlert('🏫 No schools! Residential growth is halved.', 'warn');
-
-  if (s.activeParkCount === 0 && s.pop > 60)
-    showAlert('🌳 No parks! Happiness is suffering.', 'warn');
-
-  if (s.activeGovCount === 0 && s.pop > 80)
-    showAlert('🏛 No government office! Unemployment penalty increased.', 'warn');
-
-  if (s.activePoliceCount === 0 && s.pop > 50)
-    showAlert('🚔 No police station! Crime is rising — tax income reduced.', 'warn');
-
-  if (s.activeFireCount === 0 && s.pop > 40)
-    showAlert('🚒 No fire station! Buildings are at risk of fire damage.', 'warn');
-
-  if (s.crimeData?.effectiveCrime > 0.2)
-    showAlert(`🚨 High crime rate (${Math.round(s.crimeData.effectiveCrime * 100)}%) — build more police stations.`, 'warn');
-
-  if (level.constraints.budgetDrain > 0 && state.year % 4 === 0)
-    showAlert(`🔧 Maintenance: -$${level.constraints.budgetDrain}/yr`, 'info');
+  // ── Event alerts (ongoing advice lives in the advisor panel) ──────────
+  if (state.money < 0 && !wasInDebt)
+    showAlert('💸 You are in debt! Raise taxes or pause building until income recovers.', 'warn');
 
   // Win
   if (!state.won && checkWin(s)) {
     state.won = true;
-    import('./ui.js').then(({ showLevelComplete }) => showLevelComplete(state.currentLevel));
+    import('./ui.js').then(({ showLevelComplete }) => showLevelComplete(state.currentLevel, s));
   }
 }
