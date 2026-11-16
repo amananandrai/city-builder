@@ -18,6 +18,7 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 
 ## Features
 
+- **Opening trailer:** on start-up the game builds a demo city in front of you, with camera shots from dawn to nightfall and a title card. Skip it with the button, Esc, Enter or Space; it is left out when your system asks for reduced motion.
 - **50-level campaign** across five eras: Pioneer, Expansion, Industrial, Metropolis and Utopia. Later eras raise build costs, shrink power range, lower the tax cap and add yearly upkeep.
 - **City simulation:** every in-game month residents move in, taxes come in and upkeep goes out (a year takes 48 seconds at normal speed). You also manage jobs vs. population, happiness, crime and random fires.
 - **Power and roads:** buildings run at full output only when they're powered *and* touch a road (100% with both, 75% power only, 50% road only, 25% neither).
@@ -82,6 +83,7 @@ js/
   levels.js         the 50 levels, their goals, constraints and starting land
   constants.js      grid size, zone definitions, economy, day length, land price
   advisor.js        objectives and "next step" guidance
+  intro.js          the opening trailer (demo city, camera shots, captions)
   buildings.js      every building model (homes, commerce, industry, services, parks)
   buildkit.js       shared parts: lots, roofs, balconies, smoke, flags
   props.js          trees, vehicles, street furniture, materials, mesh baking

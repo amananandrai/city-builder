@@ -149,6 +149,10 @@ function weighted(list, r) {
   return list[0][0];
 }
 
+/** Floating signs and warning badges sit on their own camera layer, so a
+ *  camera can leave them out (the opening trailer does). */
+export const BADGE_LAYER = 1;
+
 let indicatorMat = null, noRoadMat = null;
 const badgeMats = {};
 
@@ -190,6 +194,7 @@ export function buildTileMesh(type, opts = {}) {
     sign = new THREE.Sprite(mat);
     sign.scale.setScalar(0.3);
     sign.position.y = Math.min(top, 1.5) + 0.26;
+    sign.layers.set(BADGE_LAYER);
     group.add(sign);
   }
 
@@ -201,6 +206,7 @@ export function buildTileMesh(type, opts = {}) {
     badge.scale.setScalar(0.28);
     badge.position.y = Math.min(top, 2.6) + 0.28;
     badge.renderOrder = 10;
+    badge.layers.set(BADGE_LAYER);
     badge.visible = false;
     group.add(badge);
     const baseY = badge.position.y;
