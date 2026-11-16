@@ -220,11 +220,14 @@ function placeTile(gx, gz, type, quiet = false) {
 
   state.money -= cost;
 
+  const style = state.styles[type] ?? null;
+  const stage = type === 'residential' && style === 'apartment' ? 1 : 0;
   const mesh = buildTileMesh(type, {
     mask: roadMask(gx, gz),
     facing: facingFor(gx, gz),
     seed: tileSeed(gx, gz),
     spawn: true,
+    style, stage,
   });
   mesh.position.copy(worldPos(gx, gz));
   scene.add(mesh);
@@ -234,7 +237,7 @@ function placeTile(gx, gz, type, quiet = false) {
   setTile(gx, gz, {
     type,
     mesh,
-    stage: 0,
+    stage, style,
     powered:       false,
     roadConnected: false,
     population:    type === 'residential' ? Math.floor(def.pop * 0.25) : 0,
@@ -284,7 +287,11 @@ on('month', ({ net, movedIn }) => {
   for (const k in state.tiles) {
     const t = state.tiles[k];
     if (t.type !== 'residential') continue;
-    const stage = residentialStage(t.population, t.stage ?? 0);
+    // A chosen style overrides the automatic look: houses stay houses, and
+    // apartments never drop back to a house
+    let stage = residentialStage(t.population, t.stage ?? 0);
+    if (t.style === 'house') stage = 0;
+    else if (t.style === 'apartment') stage = Math.max(1, stage);
     if (stage !== (t.stage ?? 0)) restageHome(...keyToCell(k), t, stage);
   }
   // A few "+1" labels over homes that gained residents (sampled, to avoid clutter)

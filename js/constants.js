@@ -28,10 +28,32 @@ export const ZONE_DEF = {
   power:       { color:0xf1c40f, label:'Power Plant',        pop:0,  jobs:5,  cost:1500, taxBase:0,   growth:0, happinessBonus:0,  growthBonus:0, serviceRadius:0, crimeReduction:0,   fireProtection:0   },
   school:      { color:0x1abc9c, label:'School',             pop:0,  jobs:8,  cost:900,  taxBase:0,   growth:0, happinessBonus:5,  growthBonus:2, serviceRadius:4, crimeReduction:0,   fireProtection:0   },
   park:        { color:0x27ae60, label:'Park',               pop:0,  jobs:2,  cost:350,  taxBase:0,   growth:0, happinessBonus:12, growthBonus:0, serviceRadius:3, crimeReduction:0,   fireProtection:0   },
-  government:  { color:0xc0392b, label:'Government Office',  pop:0,  jobs:15, cost:1200, taxBase:0,   growth:0, happinessBonus:8,  growthBonus:0, serviceRadius:5, crimeReduction:0,   fireProtection:0   },
+  government:  { color:0xe8e2d0, label:'Government Office',  pop:0,  jobs:15, cost:1200, taxBase:0,   growth:0, happinessBonus:8,  growthBonus:0, serviceRadius:5, crimeReduction:0,   fireProtection:0   },
   police:      { color:0x2471a3, label:'Police Station',     pop:0,  jobs:10, cost:1000, taxBase:0,   growth:0, happinessBonus:6,  growthBonus:0, serviceRadius:5, crimeReduction:0.4, fireProtection:0   },
   fire:        { color:0xe74c3c, label:'Fire Station',       pop:0,  jobs:8,  cost:1100, taxBase:0,   growth:0, happinessBonus:4,  growthBonus:0, serviceRadius:5, crimeReduction:0,   fireProtection:0.5 },
 };
+
+// ── Building styles the player can pick per zone ──
+// `auto` is the default chip; picking a style is purely cosmetic.
+export const BUILD_STYLES = {
+  residential: { auto: 'Grows with residents', options: [
+    { id: 'house',     icon: '🏠', label: 'Houses' },
+    { id: 'apartment', icon: '🏢', label: 'Apartments' },
+  ] },
+  commercial: { auto: 'Mixed', options: [
+    { id: 'shops',   icon: '🏪', label: 'Shops' },
+    { id: 'midrise', icon: '🏬', label: 'Mid-rise' },
+    { id: 'office',  icon: '🏙', label: 'Office tower' },
+  ] },
+  industrial: { auto: 'Mixed', options: [
+    { id: 'factory',   icon: '🏭', label: 'Factory' },
+    { id: 'warehouse', icon: '📦', label: 'Warehouse' },
+    { id: 'refinery',  icon: '🛢', label: 'Refinery' },
+  ] },
+};
+
+// Floating sign shown above service buildings
+export const TYPE_ICONS = { power: '⚡', school: '🏫', park: '🌳', government: '🏛', police: '🚔', fire: '🚒' };
 
 export const TOOLTIP_DATA = {
   residential: { title:'Residential',      cost:'$400',  pop:'+15 base', jobs:'—',   tax:'$30/yr',  effect:'Grows over time'                              },

@@ -23,6 +23,7 @@ export const state = {
   paused:       false,
   speed:        1,
   yearClock:    0,
+  styles:       {},  // tool -> chosen building style id (unset = automatic)
 };
 
 export const tileKey = (x, z) => `${x},${z}`;
