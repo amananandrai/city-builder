@@ -37,6 +37,17 @@
  *    - +4 happiness when active (safety feeling)
  *    - Capped at +12 happiness total from fire stations
  *
+ *  TAXES (comfort rate TAX_COMFORT = 8%)
+ *    - Above it: -1.5 happiness per point and -3% growth per point (growth >= 40%)
+ *    - Below it: +0.75 happiness per point (max +6) and +2% growth per point
+ *
+ *  GROWTH DEMAND (multiplies how fast new residents move in)
+ *    - Jobs: full speed once jobs >= 80% of pop, down to 30% with no jobs
+ *      (not applied while the city is under 20 residents)
+ *    - Happiness: full speed at 60+, down to 30% at 0
+ *    - Taxes: see above
+ *    - Below 25 happiness, homes lose a resident every ~4 months
+ *
  *  TIME
  *    - The sim ticks once per month (MONTH_MS). Yearly rates are spread over
  *      12 ticks; fire is checked monthly with at most one fire per month.
@@ -51,7 +62,7 @@
  *    roadConnected only      → 0.5
  *    neither                 → 0.25
  */
-import { ZONE_DEF, MONTHS_PER_YEAR } from './constants.js';
+import { ZONE_DEF, MONTHS_PER_YEAR, TAX_COMFORT } from './constants.js';
 import { state, getTile, tileKey } from './state.js';
 import { updateHUD, showAlert } from './ui.js';
 import { getLevel } from './levels.js';
@@ -153,7 +164,25 @@ export function buildServiceMaps() {
 }
 
 // ── Population growth ──────────────────────────────────────────────────────
-export function growPopulation(maps) {
+/** Tax effect: happiness delta and growth multiplier for the current rate. */
+export function taxEffect(rate = state.taxRate) {
+  const over = Math.max(0, rate - TAX_COMFORT);
+  const under = Math.max(0, TAX_COMFORT - rate);
+  return {
+    happiness: -over * 1.5 + Math.min(6, under * 0.75),
+    growth:    Math.max(0.4, 1 - over * 0.03 + under * 0.02),
+  };
+}
+
+/** Growth multipliers from jobs, happiness and taxes, each 0.3–~1.2. */
+export function growthDemand(pop, jobs, happiness) {
+  const jobsMult  = pop < 20 ? 1 : 0.3 + 0.7 * Math.min(1, (jobs / pop) / 0.8);
+  const happyMult = 0.3 + 0.7 * Math.min(1, happiness / 60);
+  const taxMult   = taxEffect().growth;
+  return { jobs: jobsMult, happy: happyMult, tax: taxMult, total: jobsMult * happyMult * taxMult };
+}
+
+export function growPopulation(maps, demand = 1, leaving = false) {
   const { schoolBonus, parkCovered } = maps;
   const hasAnySchool = Object.values(state.tiles).some(
     t => t.type === 'school' && t.powered && t.roadConnected
@@ -177,7 +206,7 @@ export function growPopulation(maps) {
     // Yearly rates are spread over the 12 monthly ticks via a fractional
     // accumulator, so a full year of growth matches the old annual balance.
     if (t.population < target) {
-      t.growAcc = (t.growAcc || 0) + Math.ceil(growthRate * eff) / MONTHS_PER_YEAR;
+      t.growAcc = (t.growAcc || 0) + (Math.ceil(growthRate * eff) / MONTHS_PER_YEAR) * demand;
       const add = Math.floor(t.growAcc);
       if (add > 0) {
         t.growAcc -= add;
@@ -185,9 +214,14 @@ export function growPopulation(maps) {
       }
     } else {
       t.growAcc = 0;
-      if (t.population > target) {
-        t.shrinkAcc = (t.shrinkAcc || 0) + 1 / MONTHS_PER_YEAR;
-        if (t.shrinkAcc >= 1) { t.shrinkAcc -= 1; t.population = Math.max(target, t.population - 1); }
+    }
+    // Over capacity, or the city is miserable: residents drift away.
+    if (t.population > target || (leaving && t.population > 0)) {
+      const rate = t.population > target ? 1 / MONTHS_PER_YEAR : 0.25;
+      t.shrinkAcc = (t.shrinkAcc || 0) + rate;
+      if (t.shrinkAcc >= 1) {
+        t.shrinkAcc -= 1;
+        t.population = Math.max(t.population > target ? target : 0, t.population - 1);
       }
     }
   }
@@ -332,8 +366,10 @@ export function calcStats() {
   const policeBonus  = Math.min(policeHappiness,  18);
   const fireBonus    = Math.min(fireHappiness,    12);
 
+  const tax = taxEffect();
   const happiness = Math.max(0, Math.min(100,
     100
+    + tax.happiness
     - unempPenalty
     - noGovPenalty
     - powerShort
@@ -356,6 +392,8 @@ export function calcStats() {
     activePoliceCount, activeFireCount,
     schoolCoveredPop, govCoveredPop,
     crimeData, maps,
+    taxEffect: tax,
+    growth: growthDemand(pop, jobs, happiness),
   };
 }
 
@@ -393,7 +431,9 @@ export function yearlyUpkeep(s) {
 // ── Monthly tick ───────────────────────────────────────────────────────────
 export function tick() {
   const maps = buildServiceMaps();
-  growPopulation(maps);
+  // Residents move in (or leave) based on last month's jobs, mood and taxes.
+  const before = calcStats();
+  growPopulation(maps, before.growth.total, before.happiness < 25);
 
   const s     = calcStats();
 

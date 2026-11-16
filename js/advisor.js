@@ -88,7 +88,11 @@ export function advise(s) {
   }
   if (s.pop > 20 && s.jobs < s.pop * 0.8) return {
     icon: '💼', tool: s.pop > 150 ? 'industrial' : 'commercial', tone: 'warn', title: 'Not enough jobs',
-    text: `${(s.pop - s.jobs).toLocaleString()} residents are unemployed, which drags happiness down. Commercial adds 20 jobs, Industrial 35.`,
+    text: `${(s.pop - s.jobs).toLocaleString()} residents are unemployed. That drags happiness down and slows new residents moving in (growth at ${Math.round(s.growth.jobs * 100)}%). Commercial adds 20 jobs, Industrial 35.`,
+  };
+  if (state.taxRate > 8 && s.growth.tax < 0.85) return {
+    icon: '💸', tone: 'tip', title: 'Taxes are slowing growth',
+    text: `At ${state.taxRate}% residents are unhappy (${Math.round(s.taxEffect.happiness)} happiness) and move in at ${Math.round(s.growth.tax * 100)}% speed. Rates of 8% or less are comfortable.`,
   };
 
   // ── Services, in the order they start to matter ──────────────────────
