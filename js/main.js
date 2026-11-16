@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { GRID, CELL, ZONE_DEF, MONTH_MS, LAND_STEP } from './constants.js';
 import { state, getTile, setTile, tileKey, resetState, inLand, nextLandCost } from './state.js';
-import { buildTileMesh, animateTile, buildScenery, disposeTile, residentialStage } from './meshes.js';
+import { buildTileMesh, animateTile, buildScenery, disposeTile, residentialStage, BADGE_LAYER } from './meshes.js';
 import { vehicle, randomTrafficKind, seasonalGrass, M, G, add } from './props.js';
 import { createWeather } from './weather.js';
 import { grassTexture } from './textures.js';
@@ -17,6 +17,7 @@ import { updateHUD, showAlert, initToolbar, initWelcome, initLevelComplete, regi
          modalOpen, progress } from './ui.js';
 import { getLevel } from './levels.js';
 import { preloadAssets, preloadAudio, playPlacement, playRemoval } from './assets.js';
+import { createIntro } from './intro.js';
 
 // ═══════════════════════════════════════════════
 //  RENDERER & SCENE  (created once, reused across levels)
@@ -38,6 +39,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 300);
+camera.layers.enable(BADGE_LAYER);
 const CAM_DIR = new THREE.Vector3(16, 17, 22).normalize();
 /** Park the camera so the owned plot fills the view. */
 function frameLand(land) {
@@ -324,7 +326,7 @@ function placeTile(gx, gz, type, quiet = false) {
   });
   if (type === 'road') refreshRoadsAround(gx, gz);
 
-  playPlacement();
+  if (!intro?.active) playPlacement(); // the opening trailer builds in silence
   updatePower();
   updateRoadConnectivity();
   updateHUD(calcStats());
@@ -857,11 +859,13 @@ registerGame({ startLevel, beginLevel, setSpeed, setOverlay, buyLand });
 // ═══════════════════════════════════════════════
 const clock = new THREE.Clock();
 let overlayFrame = 0;
+let intro = null; // opening trailer (see intro.js); null until the assets are loaded
 function animate() {
   requestAnimationFrame(animate);
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 0.1);
   const t  = clock.elapsedTime;
+  intro?.update(rawDt);
   controls.update();
   updateCars(dt);
   updateWalkers(dt, t);
@@ -910,7 +914,8 @@ async function boot() {
   initToolbar(tool => { selectedTool = tool; refreshHover(); });
   initLevelComplete();
   updateHUD(calcStats());
-  initWelcome();
+  // Opening trailer first; the welcome guide follows when it ends or is skipped
+  intro = createIntro({ state, camera, controls, placeTile, restageHome, getTile, applyLand, frameLand, badgeLayer: BADGE_LAYER }, initWelcome);
 }
 
 boot();

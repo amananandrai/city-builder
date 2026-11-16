@@ -18,8 +18,9 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 
 ## Features
 
+- **Opening trailer:** on start-up the game builds a demo city in front of you, with camera shots from dawn to nightfall and a title card. Skip it with the button, Esc, Enter or Space; it is left out when your system asks for reduced motion.
 - **50-level campaign** across five eras: Pioneer, Expansion, Industrial, Metropolis and Utopia. Later eras raise build costs, shrink power range, lower the tax cap and add yearly upkeep.
-- **City simulation:** residents move in each year, taxes come in and upkeep goes out. You also manage jobs vs. population, happiness, crime and random fires.
+- **City simulation:** every in-game month residents move in, taxes come in and upkeep goes out (a year takes 48 seconds at normal speed). You also manage jobs vs. population, happiness, crime and random fires.
 - **Power and roads:** buildings run at full output only when they're powered *and* touch a road (100% with both, 75% power only, 50% road only, 25% neither).
 - **Zones and services:** Residential, Commercial, Industrial, Power Plant, School, Park, Government Office, Police Station and Fire Station. Each service covers a radius, which is highlighted while you place it.
 - **Advisor and objectives:** a live panel shows goal progress and the single most useful next step.
@@ -40,6 +41,18 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 
 Meet every goal in the Objectives panel at the same time to complete a level.
 
+### Controls
+
+| Action | Input |
+| --- | --- |
+| Build or demolish | Pick a tool, then click a tile on your land |
+| Draw a road | Road tool, click and drag |
+| Rotate the camera | Left-drag (any tool except Road) |
+| Pan the camera | Right-drag |
+| Zoom | Mouse wheel |
+| Pause / resume | **Space** |
+| Coverage views | The ⚡ 🚒 🚔 🏫 🌳 🏛 buttons on the right |
+
 ## Tech stack
 
 - [Three.js](https://threejs.org/) r160, loaded from a CDN via an import map, with no build step
@@ -49,7 +62,7 @@ Meet every goal in the Objectives panel at the same time to complete a level.
 
 ## Run locally
 
-The game uses ES modules and loads 3D models, so it has to be served over HTTP. Opening `index.html` straight from disk won't work.
+The game uses ES modules and loads its sounds at start-up, so it has to be served over HTTP. Opening `index.html` straight from disk won't work.
 
 ```bash
 git clone https://github.com/amananandrai/city-builder.git
@@ -70,6 +83,7 @@ js/
   levels.js         the 50 levels, their goals, constraints and starting land
   constants.js      grid size, zone definitions, economy, day length, land price
   advisor.js        objectives and "next step" guidance
+  intro.js          the opening trailer (demo city, camera shots, captions)
   buildings.js      every building model (homes, commerce, industry, services, parks)
   buildkit.js       shared parts: lots, roofs, balconies, smoke, flags
   props.js          trees, vehicles, street furniture, materials, mesh baking
@@ -85,7 +99,7 @@ tools/balance-bot.mjs   headless bot that plays every level to check difficulty
 
 ### Balance bot
 
-`tools/balance-bot.mjs` plays each level with a simple build order and reports how long it takes to win. Re-run it after changing the economy, growth rates or level table:
+`tools/balance-bot.mjs` plays each level with a simple build order and reports how long it takes to win, how many lots it used and how much land it had to buy. Re-run it after changing the economy, growth rates, land sizes or level table:
 
 ```bash
 node tools/balance-bot.mjs          # all 50 levels
@@ -94,4 +108,4 @@ node tools/balance-bot.mjs 1,10,50  # specific levels
 
 ## License
 
-[MIT](LICENSE) © 2026 Aman Anand Rai. The GLB models in `assets/models` are by Kenney (CC0).
+[MIT](LICENSE) © 2026 Aman Anand Rai. The GLB models in `assets/models` are by [Kenney](https://kenney.nl/) (CC0); the game no longer draws them, since every model is now generated in code.
