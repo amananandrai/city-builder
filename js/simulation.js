@@ -4,9 +4,9 @@
  * ── Service building mechanics ──────────────────────────────────────────
  *
  *  SCHOOL (radius 4)
- *    - +2 growth/yr to residential tiles in radius
+ *    - +4 growth/yr to residential tiles in radius
  *    - Without any school: all residential growth halved
- *    - School-covered pop pays +$10 tax/person/yr
+ *    - School-covered pop pays +$40 tax/person/yr
  *    - +5 happiness (capped at +15 total)
  *
  *  PARK (radius 3)
@@ -62,7 +62,7 @@
  *    roadConnected only      → 0.5
  *    neither                 → 0.25
  */
-import { ZONE_DEF, MONTHS_PER_YEAR, TAX_COMFORT } from './constants.js';
+import { ZONE_DEF, MONTHS_PER_YEAR, TAX_COMFORT, ECONOMY } from './constants.js';
 import { state, getTile, tileKey } from './state.js';
 import { updateHUD, showAlert } from './ui.js';
 import { getLevel } from './levels.js';
@@ -377,7 +377,7 @@ export function calcStats() {
 
   const tax = taxEffect();
   const happiness = Math.max(0, Math.min(100,
-    100
+    ECONOMY.baseHappiness
     + tax.happiness
     - unempPenalty
     - noGovPenalty
@@ -404,7 +404,7 @@ export function calcStats() {
     taxEffect: tax,
     // What adds to and subtracts from happiness (before the 0–100 clamp)
     happyParts: [
-      ['Base', 100],
+      ['Base', ECONOMY.baseHappiness],
       ['Parks', parkBonus], ['Government', govBonus], ['Schools', schoolBonus2],
       ['Police', policeBonus], ['Fire stations', fireBonus],
       ['Taxes', tax.happiness],
@@ -430,8 +430,8 @@ export function checkWin(s) {
 // ── Money ──────────────────────────────────────────────────────────────────
 /** Yearly tax income for the given stats. */
 export function yearlyIncome(s) {
-  const baseTax        = Math.floor(s.pop * state.taxRate * 0.5 + s.jobs * state.taxRate * 0.3);
-  const schoolTaxBonus = Math.floor(s.schoolCoveredPop * 10);
+  const baseTax        = Math.floor(s.pop * state.taxRate * ECONOMY.taxPerResident + s.jobs * state.taxRate * ECONOMY.taxPerJob);
+  const schoolTaxBonus = Math.floor(s.schoolCoveredPop * ECONOMY.schoolTax);
   const govTaxMult     = 1 + (s.govCoveredPop / Math.max(1, s.pop)) * 0.15;
   // Crime reduces tax income
   const crimeTaxMult   = 1 - (s.crimeData?.taxReductionFrac || 0);
