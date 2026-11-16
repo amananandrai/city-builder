@@ -128,7 +128,7 @@ export function advise(s) {
       text: `Your ${homes} home${homes === 1 ? '' : 's'} can hold about ${capacity} people, but the goal is ${goals.pop.toLocaleString()}. Add Residential zones beside powered roads — near a school and park for faster growth.`,
     } : {
       icon: '⏳', tone: 'good', title: 'Population is growing',
-      text: `Residents move in each year (${s.pop}/${goals.pop.toLocaleString()}). ${s.activeSchoolCount ? 'Schools nearby speed this up.' : 'A school would double the speed.'} Use ⏩ to fast-forward.`,
+      text: `Residents move in over time (${s.pop}/${goals.pop.toLocaleString()}). ${s.activeSchoolCount ? 'Schools nearby speed this up.' : 'A school would double the speed.'} Use ⏩ to fast-forward.`,
     };
   }
   if (goals.jobs && s.jobs < goals.jobs) return {

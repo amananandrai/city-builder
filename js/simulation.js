@@ -37,6 +37,10 @@
  *    - +4 happiness when active (safety feeling)
  *    - Capped at +12 happiness total from fire stations
  *
+ *  TIME
+ *    - The sim ticks once per month (MONTH_MS). Yearly rates are spread over
+ *      12 ticks; fire is checked monthly with at most one fire per month.
+ *
  *  UPKEEP
  *    - Level budgetDrain is the yearly upkeep at the population goal; it
  *      scales with population so a brand-new city isn't drained.
@@ -47,7 +51,7 @@
  *    roadConnected only      → 0.5
  *    neither                 → 0.25
  */
-import { ZONE_DEF } from './constants.js';
+import { ZONE_DEF, MONTHS_PER_YEAR } from './constants.js';
 import { state, getTile, tileKey } from './state.js';
 import { updateHUD, showAlert } from './ui.js';
 import { getLevel } from './levels.js';
@@ -170,17 +174,29 @@ export function growPopulation(maps) {
       ? def.growth + bonus
       : hasAnySchool ? def.growth : def.growth * 0.5;
 
+    // Yearly rates are spread over the 12 monthly ticks via a fractional
+    // accumulator, so a full year of growth matches the old annual balance.
     if (t.population < target) {
-      t.population = Math.min(target, t.population + Math.ceil(growthRate * eff));
-    } else if (t.population > target) {
-      t.population = Math.max(target, t.population - 1);
+      t.growAcc = (t.growAcc || 0) + Math.ceil(growthRate * eff) / MONTHS_PER_YEAR;
+      const add = Math.floor(t.growAcc);
+      if (add > 0) {
+        t.growAcc -= add;
+        t.population = Math.min(target, t.population + add);
+      }
+    } else {
+      t.growAcc = 0;
+      if (t.population > target) {
+        t.shrinkAcc = (t.shrinkAcc || 0) + 1 / MONTHS_PER_YEAR;
+        if (t.shrinkAcc >= 1) { t.shrinkAcc -= 1; t.population = Math.max(target, t.population - 1); }
+      }
     }
   }
 }
 
 // ── Fire events ────────────────────────────────────────────────────────────
-// Returns total money lost to fires this tick and list of affected tile keys.
-// Fires only start once the city has more than 40 residents.
+// Returns total money lost to fires this month and list of affected tile keys.
+// Fires only start once the city has more than 40 residents. At most one fire
+// breaks out per month, so the player isn't buried in alerts.
 function processFireEvents(maps, pop) {
   if (pop <= 40) return { totalDamage: 0, burnedTiles: [] };
   const { fireCovered } = maps;
@@ -188,7 +204,8 @@ function processFireEvents(maps, pop) {
 
   // Count industrial tiles (fire hazard)
   const industrialCount = tiles.filter(([, t]) => t.type === 'industrial').length;
-  const baseFireRisk    = Math.min(0.12, 0.02 + industrialCount * 0.001); // 2% + 1% per 10 industrial tiles
+  // Yearly per-tile risk: 2% + 1% per 10 industrial tiles (cap 12%), spread over 12 months.
+  const baseFireRisk    = Math.min(0.12, 0.02 + industrialCount * 0.001) / MONTHS_PER_YEAR;
 
   let totalDamage = 0;
   const burnedTiles = [];
@@ -213,6 +230,7 @@ function processFireEvents(maps, pop) {
       }
 
       burnedTiles.push(k);
+      break; // one fire per month
     }
   }
 
@@ -363,13 +381,16 @@ export function yearlyIncome(s) {
   return Math.floor((baseTax + schoolTaxBonus) * govTaxMult * crimeTaxMult);
 }
 
+/** Monthly share of a yearly amount, rounded to whole dollars. */
+export const monthly = amount => Math.round(amount / MONTHS_PER_YEAR);
+
 /** Yearly upkeep: the level's budgetDrain, scaled by progress toward the pop goal. */
 export function yearlyUpkeep(s) {
   const { constraints, goals } = getLevel(state.currentLevel);
   return Math.round(constraints.budgetDrain * Math.min(1, s.pop / goals.pop));
 }
 
-// ── Annual tick ────────────────────────────────────────────────────────────
+// ── Monthly tick ───────────────────────────────────────────────────────────
 export function tick() {
   const maps = buildServiceMaps();
   growPopulation(maps);
@@ -380,13 +401,14 @@ export function tick() {
   const { totalDamage, burnedTiles } = processFireEvents(maps, s.pop);
   if (totalDamage > 0) {
     state.money -= totalDamage;
-    showAlert(`🔥 Fire damage! Lost $${totalDamage.toLocaleString()}. Build fire stations!`, 'warn');
+    showAlert(`🔥 A building caught fire! Lost $${totalDamage.toLocaleString()}. Build fire stations!`, 'warn');
   }
 
   // ── Income ───────────────────────────────────────────────────────────
   const wasInDebt = state.money < 0;
-  state.money += yearlyIncome(s) - yearlyUpkeep(s);
-  state.year++;
+  state.money += monthly(yearlyIncome(s)) - monthly(yearlyUpkeep(s));
+  state.month++;
+  if (state.month >= MONTHS_PER_YEAR) { state.month = 0; state.year++; }
 
   updateHUD(s);
 

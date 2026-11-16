@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { GRID, CELL, ZONE_DEF, TICK_MS } from './constants.js';
+import { GRID, CELL, ZONE_DEF, MONTH_MS } from './constants.js';
 import { state, getTile, setTile, tileKey, resetState } from './state.js';
 import { buildTileMesh, animateTile, buildScenery, disposeTile } from './meshes.js';
 import { vehicle, randomTrafficKind } from './props.js';
@@ -584,13 +584,13 @@ function animate() {
   const t  = clock.elapsedTime;
   controls.update();
   updateCars(dt);
-  // Simulation clock: one tick per in-game year, frozen while paused or a
+  // Simulation clock: one tick per in-game month, frozen while paused or a
   // full-screen overlay (briefing, level complete…) is open.
   if (state.running && !state.paused && !modalOpen()) {
-    state.yearClock += Math.min(rawDt, 0.5) * state.speed; // keep years on time at low FPS
-    const yearLen = TICK_MS / 1000;
-    if (state.yearClock >= yearLen) {
-      state.yearClock -= yearLen;
+    state.yearClock += Math.min(rawDt, 0.5) * state.speed; // keep months on time at low FPS
+    const monthLen = MONTH_MS / 1000;
+    if (state.yearClock >= monthLen) {
+      state.yearClock -= monthLen;
       tick();
     }
     renderYearProgress();
