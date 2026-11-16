@@ -10,8 +10,7 @@
  * and is driven by animateTile() from the render loop.
  */
 import * as THREE from 'three';
-import { CELL, ZONE_DEF } from './constants.js';
-import { cloneModel } from './assets.js';
+import { CELL, ZONE_DEF, TYPE_ICONS } from './constants.js';
 import {
   M, MAT, G, add, boxAt, facadeBlock, texturedPanel, prismGeo, coolingTowerGeo,
   rng, pick, tree, bush, hedge, streetLamp, bench, flagpole, vehicle, rooftop, bake,
@@ -19,7 +18,7 @@ import {
 } from './props.js';
 import {
   grassTexture, asphaltTexture, paverTexture, shingleTexture, shopfrontTexture,
-  awningTexture, signTexture, shutterTexture, fieldTexture, noPowerTexture,
+  awningTexture, signTexture, shutterTexture, fieldTexture, noPowerTexture, badgeTexture,
 } from './textures.js';
 
 const HALF = CELL / 2;   // 0.6
@@ -34,11 +33,19 @@ const SURF = {
   asphalt: () => M(0xffffff, { map: asphaltTexture(), r: 0.95 }),
 };
 
+// ── Visual theme ───────────────────────────────────────────────────────────
+// Every building wears its type's colour (the same one as its toolbar button)
+// on the roof and trim, so a district can be read at a glance from above:
+// blue homes, amber commerce, purple industry, and one colour per service.
+const themeHex = type => ZONE_DEF[type]?.color ?? 0x888888;
+const roofOf = type => snowy(M(themeHex(type), { r: 0.78 }), 0.45);
+const trimOf = type => M(themeHex(type), { r: 0.6 });
+
 function lot(g, surface, zoneType) {
   boxAt(g, LOT, BASE, LOT, SURF[surface](), 0, 0, 0, { shadow: false });
   // Thin zone-coloured kerb so zones stay readable at a glance
   const kerb = M(ZONE_DEF[zoneType]?.color ?? 0x888888, { r: 0.6 });
-  const t = 0.025;
+  const t = 0.04;
   boxAt(g, LOT, BASE + 0.008, t, kerb,  0, 0,  L2 - t / 2, { shadow: false });
   boxAt(g, LOT, BASE + 0.008, t, kerb,  0, 0, -L2 + t / 2, { shadow: false });
   boxAt(g, t, BASE + 0.008, LOT, kerb,  L2 - t / 2, 0, 0, { shadow: false });
@@ -91,8 +98,9 @@ function gableRoof(g, w, d, rh, y, z, wallHex, roofHex) {
   }
 }
 
-const WALLS_HOUSE = [0xf3e9d2, 0xdfe8ef, 0xf6d7b0, 0xe8d3d0, 0xd5e5d0, 0xfaf3e3, 0xcfd8dc];
-const ROOFS       = [0x9c3d2e, 0x5b4636, 0x3e4a5c, 0x7a4b2a, 0x4e5d4a, 0x6d3b32];
+// Homes: warm cream walls under blue roofs
+const WALLS_HOUSE = [0xf5ecd9, 0xfaf4e6, 0xefe3cb, 0xf2e6d4];
+const ROOFS       = [0x4a90d9, 0x4486cc, 0x5398dd];
 const DOORS       = [0x6b3e26, 0x2e4a62, 0x8e2b2b, 0x2f5d3a, 0x3b3b3b];
 const BRICKS      = [0xa0523d, 0x8e4b3b, 0xb5654a, 0x7d4a3a];
 
@@ -102,7 +110,7 @@ const BRICKS      = [0xa0523d, 0x8e4b3b, 0xb5654a, 0x7d4a3a];
 function buildHouse(g, r) {
   lot(g, 'grass', 'residential');
   const wall = pick(WALLS_HOUSE, r), roofC = pick(ROOFS, r);
-  const floors = r() < 0.45 ? 2 : 1;
+  const floors = 1;
   const w = 0.6, d = 0.46, fh = 0.24, h = floors * fh, z = -0.1;
   facadeBlock(g, w, h, d, 0, BASE, z, { style: 'house', wall, bay: 0.19, floor: fh });
   gableRoof(g, w, d, 0.2, BASE + h, z, wall, roofC);
@@ -146,15 +154,15 @@ function buildHouse(g, r) {
   bush(g, -0.28, zf + 0.05, 0.7, 0xc0587a);
 }
 
-/** tall: false = 2–3 floor walk-up, true = 4–5 floor block. */
+/** tall: false = 3-floor walk-up, true = 5-floor block. */
 function buildApartment(g, r, tall = false) {
-  lot(g, 'paved', 'residential');
-  const brick = r() < 0.5;
-  const wall = brick ? pick(BRICKS, r) : pick([0xe9e1d3, 0xd8dee3, 0xf0d9b5, 0xc9d6c3], r);
-  const floors = (tall ? 4 : 2) + Math.floor(r() * 2);
+  lot(g, 'grass', 'residential');
+  const wall = pick(WALLS_HOUSE, r);
+  const floors = tall ? 5 : 3;
   const fh = 0.25, w = 0.78, d = 0.6, h = floors * fh;
-  facadeBlock(g, w, h, d, 0, BASE, -0.08, { style: brick ? 'brick' : 'apartment', wall, bay: 0.195, floor: fh });
-  const trim = M(brick ? 0xd9d2c3 : 0x7f8c8d, { r: 0.8 });
+  boxAt(g, w + 0.16, 0.006, d + 0.2, SURF.paved(), 0, BASE, -0.04, { shadow: false });
+  facadeBlock(g, w, h, d, 0, BASE, -0.08, { style: 'apartment', wall, bay: 0.195, floor: fh, roofMat: roofOf('residential') });
+  const trim = trimOf('residential');
   parapet(g, w + 0.02, d + 0.02, BASE + h, trim);
   rooftop(g, w, d, BASE + h, r);
   // Entrance canopy
@@ -167,25 +175,14 @@ function buildApartment(g, r, tall = false) {
   bench(g, 0.15, 0.45);
 }
 
-const KENNEY_HOUSES = ['building-small-a.glb', 'building-small-b.glb', 'building-small-c.glb', 'building-small-d.glb'];
-function buildKenneyHouse(g, r) {
-  const m = cloneModel(pick(KENNEY_HOUSES, r), null, 0.92);
-  if (!m) return buildHouse(g, r);
-  lot(g, 'grass', 'residential');
-  m.position.y = BASE;
-  m.userData.noBake = true;
-  m.traverse(c => { if (c.isMesh) c.userData.ownsMaterial = true; }); // cloned per tile
-  g.add(m);
-  tree(g, 0.42, 0.42, 0.75, 'round', r);
-  bush(g, -0.42, 0.44, 0.9);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 //  COMMERCIAL
 // ═══════════════════════════════════════════════════════════════════════════
 const SHOP_NAMES = ['CAFÉ', 'MARKET', 'BOOKS', 'PIZZA', 'BAKERY', 'DINER', 'DELI', 'FASHION', 'PHARMACY', 'FLOWERS', 'SUSHI', 'GROCER'];
-const SIGN_COLS  = [0xc0392b, 0x16a085, 0x2c3e50, 0x8e44ad, 0xd35400, 0x27ae60, 0x2980b9];
-const AWNINGS    = [[0xc0392b, 0xf5f5f5], [0x16a085, 0xf5f5f5], [0x2c3e50, 0xe8d8b0], [0xd35400, 0xfff2d6], [0x27ae60, 0xf5f5f5]];
+// Commerce: pale walls and glass with amber awnings, signs and roofs
+const SIGN_COLS  = [0xb9690d, 0x2c3e50, 0xd9822b];
+const AWNINGS    = [[0xf39c12, 0xf8f4ea], [0xe08e0b, 0xfff2d6]];
+const UMBRELLAS  = [0xf39c12, 0xf8f4ea, 0xe67e22];
 
 function storefront(g, w, zf, wall, r, y0 = BASE) {
   texturedPanel(g, w * 0.96, 0.2, shopfrontTexture(wall), 0, y0 + 0.1, zf + 0.003, 0, 0.35);
@@ -198,11 +195,11 @@ function storefront(g, w, zf, wall, r, y0 = BASE) {
 
 function buildShops(g, r) {
   lot(g, 'paved', 'commercial');
-  const wall = pick([0xe6d5b8, 0xcfd8dc, 0xb5654a, 0xf0e3c8, 0xd7c4a3], r);
-  const floors = 1 + Math.floor(r() * 2);
+  const wall = pick([0xe9e4d8, 0xdfe3e6, 0xf0e8d8], r);
+  const floors = 1;
   const w = 0.94, d = 0.6, fh = 0.3, h = floors * fh + 0.06, z = -0.14;
-  facadeBlock(g, w, h, d, 0, BASE, z, { style: floors > 1 ? 'house' : 'concrete', wall, bay: 0.235, floor: fh });
-  parapet(g, w + 0.02, d + 0.02, BASE + h, M(0x6d6d6d));
+  facadeBlock(g, w, h, d, 0, BASE, z, { style: 'concrete', wall, bay: 0.235, floor: fh, roofMat: roofOf('commercial') });
+  parapet(g, w + 0.02, d + 0.02, BASE + h, trimOf('commercial'));
   rooftop(g, w, d, BASE + h, r);
   storefront(g, w, z + d / 2, wall, r);
   // Sidewalk furniture
@@ -215,25 +212,27 @@ function buildShops(g, r) {
   for (const x of [-0.18, 0.18]) {
     add(g, G.cyl(0.035, 0.035, 0.008, 10), MAT.white(), x, BASE + 0.06, 0.25);
     add(g, G.cyl(0.004, 0.004, 0.06, 4), MAT.darkMetal(), x, BASE + 0.03, 0.25);
-    add(g, G.cone(0.06, 0.04, 8), M(pick(SIGN_COLS, r)), x, BASE + 0.16, 0.25);
+    add(g, G.cone(0.06, 0.04, 8), M(pick(UMBRELLAS, r)), x, BASE + 0.16, 0.25);
     add(g, G.cyl(0.003, 0.003, 0.1, 4), MAT.darkMetal(), x, BASE + 0.11, 0.25);
   }
 }
 
 function buildOffice(g, r) {
   lot(g, 'paved', 'commercial');
-  const glass = r() < 0.55;
-  const wall = glass ? pick([0x9fb3c8, 0x7f9db8, 0xb8c4cc], r) : pick([0xd9d4c7, 0xb9bfc4, 0xe0d0b0], r);
-  const floors = 5 + Math.floor(r() * 4);
+  const glass = true;
+  const wall = pick([0x9fb3c8, 0x8fa9c2], r);
+  const floors = 6 + Math.floor(r() * 2);
   const fh = 0.22, w = 0.66, d = 0.62, h = floors * fh, z = -0.08;
   // Podium
   boxAt(g, w + 0.12, 0.06, d + 0.1, MAT.concrete(), 0, BASE, z);
   facadeBlock(g, w, h, d, 0, BASE + 0.06, z, { style: glass ? 'glass' : 'office', wall, bay: 0.165, floor: fh });
   // Setback crown
   const cw = w * 0.7, cd = d * 0.7, ch = 0.18;
-  facadeBlock(g, cw, ch, cd, 0, BASE + 0.06 + h, z, { style: glass ? 'glass' : 'office', wall, bay: 0.115, floor: ch });
+  facadeBlock(g, cw, ch, cd, 0, BASE + 0.06 + h, z, { style: glass ? 'glass' : 'office', wall, bay: 0.115, floor: ch, roofMat: roofOf('commercial') });
   const top = BASE + 0.06 + h + ch;
-  parapet(g, cw + 0.02, cd + 0.02, top, MAT.darkMetal(), 0.02, 0.03);
+  // Amber band around the tower top and the crown
+  boxAt(g, w + 0.03, 0.035, d + 0.03, trimOf('commercial'), 0, BASE + 0.06 + h - 0.035, z);
+  parapet(g, cw + 0.02, cd + 0.02, top, trimOf('commercial'), 0.02, 0.03);
   rooftop(g, cw, cd, top, r);
   add(g, G.cyl(0.006, 0.01, 0.35, 6), MAT.metal(), cw * 0.25, top + 0.175, z);
   add(g, G.sphere(0.012, 8, 6), M(0xff3b30, { e: 0xff0000, ei: 2 }), cw * 0.25, top + 0.355, z, { shadow: false });
@@ -247,13 +246,13 @@ function buildOffice(g, r) {
 
 function buildMidrise(g, r) {
   lot(g, 'paved', 'commercial');
-  const wall = pick(BRICKS.concat([0xd7c4a3, 0xc9b79c]), r);
-  const w = 0.9, d = 0.66, upper = 2 + Math.floor(r() * 2), fh = 0.24, z = -0.1;
+  const wall = pick([0xdcd6c8, 0xd3d8dc], r);
+  const w = 0.9, d = 0.66, upper = 3, fh = 0.24, z = -0.1;
   facadeBlock(g, w, 0.32, d, 0, BASE, z, { style: 'concrete', wall: 0x6d6d6d, bay: 0.225, floor: 0.32 });
   storefront(g, w, z + d / 2, 0x4a4a4a, r);
-  facadeBlock(g, w, upper * fh, d, 0, BASE + 0.32, z, { style: 'brick', wall, bay: 0.18, floor: fh });
+  facadeBlock(g, w, upper * fh, d, 0, BASE + 0.32, z, { style: 'office', wall, bay: 0.18, floor: fh });
   const top = BASE + 0.32 + upper * fh;
-  boxAt(g, w + 0.04, 0.035, d + 0.04, MAT.white(), 0, top, z);
+  boxAt(g, w + 0.04, 0.035, d + 0.04, roofOf('commercial'), 0, top, z);
   rooftop(g, w, d, top + 0.035, r);
   streetLamp(g, -0.42, 0.42);
   streetLamp(g, 0.42, 0.42);
@@ -275,12 +274,12 @@ function chimney(g, x, z, h, r) {
 
 function buildFactory(g, r) {
   lot(g, 'asphalt', 'industrial');
-  const wall = pick([0xb7b2a6, 0x9aa5ab, 0xc2b59b], r);
+  const wall = pick([0xa9afb5, 0xb3b8bd], r);
   const w = 0.82, d = 0.6, h = 0.34, z = -0.12, x0 = -0.08;
   facadeBlock(g, w, h, d, x0, BASE, z, { style: 'concrete', wall, bay: 0.2, floor: h });
   // Sawtooth roof
   const teeth = 4, tw = w / teeth;
-  const roofM = M(0x8d9499, { r: 0.5, m: 0.5 });
+  const roofM = roofOf('industrial');
   for (let i = 0; i < teeth; i++) {
     const cx = x0 - w / 2 + tw * (i + 0.5);
     add(g, prismGeo(tw, 0.12, d), roofM, cx, BASE + h, z, { s: [1, 1, 1] });
@@ -307,10 +306,10 @@ function container(g, x, y, z, ry, color) {
 
 function buildWarehouse(g, r) {
   lot(g, 'asphalt', 'industrial');
-  const wall = pick([0x9aa5ab, 0xc0c4c8, 0x8c9b8a, 0xb9a98a], r);
+  const wall = pick([0xa9afb5, 0xb3b8bd], r);
   const w = 0.9, d = 0.5, h = 0.38, z = -0.22;
   facadeBlock(g, w, h, d, 0, BASE, z, { style: 'concrete', wall, bay: 0.225, floor: h });
-  boxAt(g, w + 0.03, 0.03, d + 0.03, MAT.darkMetal(), 0, BASE + h, z);
+  boxAt(g, w + 0.03, 0.03, d + 0.03, roofOf('industrial'), 0, BASE + h, z);
   // Dock: raised platform + three shutters
   boxAt(g, w * 0.8, 0.05, 0.08, MAT.concrete(), 0, BASE, z + d / 2 + 0.04);
   for (const dx of [-0.26, 0, 0.26]) {
@@ -340,7 +339,8 @@ function buildRefinery(g, r) {
   for (const [x, z, rad, h] of tanks) {
     add(g, G.cyl(rad, rad, h, 20), tankM, x, BASE + h / 2, z);
     add(g, G.sphere(rad, 20, 8), tankM, x, BASE + h, z, { s: [1, 0.25, 1] });
-    add(g, G.torus(rad + 0.004, 0.006, 4, 24), MAT.darkMetal(), x, BASE + h * 0.5, z, { rx: Math.PI / 2 });
+    add(g, G.cyl(rad + 0.004, rad + 0.004, h * 0.16, 20), trimOf('industrial'), x, BASE + h * 0.72, z);
+    add(g, G.sphere(rad * 0.55, 16, 6), roofOf('industrial'), x, BASE + h + rad * 0.14, z, { s: [1, 0.25, 1] });
     // Ladder
     boxAt(g, 0.02, h, 0.008, MAT.darkMetal(), x + rad, BASE, z);
   }
@@ -349,7 +349,7 @@ function buildRefinery(g, r) {
   for (const [y, c] of [[0.2, 0xd35400], [0.17, 0xf1c40f], [0.14, 0x7f8c8d]])
     add(g, G.cyl(0.013, 0.013, 0.55, 8), M(c, { r: 0.5, m: 0.4 }), 0.12, BASE + y, 0.05, { rz: Math.PI / 2 });
   // Control office
-  facadeBlock(g, 0.3, 0.22, 0.2, 0.3, BASE, 0.32, { style: 'office', wall: 0xd0d3d4, bay: 0.15, floor: 0.22 });
+  facadeBlock(g, 0.3, 0.22, 0.2, 0.3, BASE, 0.32, { style: 'office', wall: 0xd0d3d4, bay: 0.15, floor: 0.22, roofMat: roofOf('industrial') });
   // Flare stack
   add(g, G.cyl(0.02, 0.03, 0.9, 8), MAT.darkMetal(), 0.42, BASE + 0.45, -0.1);
   const flame = add(g, G.cone(0.03, 0.09, 8), M(0xffa21a, { e: 0xff6a00, ei: 2 }), 0.42, BASE + 0.95, -0.1, { shadow: false });
@@ -393,13 +393,13 @@ function buildPower(g, r) {
 // ═══════════════════════════════════════════════════════════════════════════
 function buildSchool(g, r) {
   lot(g, 'grass', 'school');
-  const wall = pick([0xb5654a, 0xc9a57a, 0xd8c3a5], r);
+  const wall = 0xf0dc9a;
   const fh = 0.22;
-  facadeBlock(g, 0.86, fh * 2, 0.36, 0, BASE, -0.3, { style: 'brick', wall, bay: 0.18, floor: fh });
-  facadeBlock(g, 0.28, fh * 2, 0.32, -0.29, BASE, 0.03, { style: 'brick', wall, bay: 0.18, floor: fh });
+  facadeBlock(g, 0.86, fh * 2, 0.36, 0, BASE, -0.3, { style: 'house', wall, bay: 0.18, floor: fh, roofMat: roofOf('school') });
+  facadeBlock(g, 0.28, fh * 2, 0.32, -0.29, BASE, 0.03, { style: 'house', wall, bay: 0.18, floor: fh });
   const trim = MAT.white();
-  parapet(g, 0.88, 0.38, BASE + fh * 2, trim);
-  boxAt(g, 0.3, 0.035, 0.34, trim, -0.29, BASE + fh * 2, 0.03);
+  parapet(g, 0.88, 0.38, BASE + fh * 2, trimOf('school'));
+  boxAt(g, 0.3, 0.035, 0.34, roofOf('school'), -0.29, BASE + fh * 2, 0.03);
   rooftop(g, 0.8, 0.3, BASE + fh * 2, r);
   // Entrance with columns and sign
   const zf = -0.3 + 0.18;
@@ -523,7 +523,7 @@ function buildGovernment(g, r) {
     const a = (i / 12) * Math.PI * 2;
     add(g, G.cyl(0.008, 0.008, 0.12, 6), stone2, Math.cos(a) * 0.175, top + 0.09, z - 0.08 + Math.sin(a) * 0.175);
   }
-  add(g, G.sphere(0.165, 24, 12), M(0x6f9f8f, { r: 0.4, m: 0.5 }), 0, top + 0.15, z - 0.08, { s: [1, 0.9, 1] });
+  add(g, G.sphere(0.165, 24, 12), M(0xd4af37, { r: 0.35, m: 0.7 }), 0, top + 0.15, z - 0.08, { s: [1, 0.9, 1] });
   add(g, G.cyl(0.025, 0.03, 0.07, 10), stone, 0, top + 0.33, z - 0.08);
   add(g, G.sphere(0.02, 8, 6), M(0xd4af37, { m: 0.9, r: 0.25 }), 0, top + 0.38, z - 0.08);
   // Lawn details
@@ -537,8 +537,8 @@ function buildGovernment(g, r) {
 function buildPolice(g, r) {
   lot(g, 'paved', 'police');
   const z = -0.18, w = 0.78, d = 0.44, fh = 0.24;
-  facadeBlock(g, w, fh * 2, d, 0, BASE, z, { style: 'office', wall: 0x34495e, bay: 0.195, floor: fh });
-  const trim = M(0x2471a3, { r: 0.6 });
+  facadeBlock(g, w, fh * 2, d, 0, BASE, z, { style: 'office', wall: 0x2c3e50, bay: 0.195, floor: fh, roofMat: roofOf('police') });
+  const trim = trimOf('police');
   boxAt(g, w + 0.03, 0.035, d + 0.03, trim, 0, BASE + fh * 2, z);
   boxAt(g, w + 0.01, 0.025, d + 0.01, MAT.white(), 0, BASE + fh, z);
   rooftop(g, w, d, BASE + fh * 2 + 0.035, r);
@@ -570,8 +570,8 @@ function buildFire(g, r) {
   lot(g, 'asphalt', 'fire');
   const z = -0.16, w = 0.7, d = 0.46, fh = 0.26;
   const brick = pick([0xa93226, 0x922b21, 0xb03a2e], r);
-  facadeBlock(g, w, fh * 2, d, -0.06, BASE, z, { style: 'brick', wall: brick, bay: 0.175, floor: fh });
-  boxAt(g, w + 0.03, 0.035, d + 0.03, MAT.white(), -0.06, BASE + fh * 2, z);
+  facadeBlock(g, w, fh * 2, d, -0.06, BASE, z, { style: 'brick', wall: brick, bay: 0.175, floor: fh, roofMat: roofOf('fire') });
+  boxAt(g, w + 0.03, 0.035, d + 0.03, roofOf('fire'), -0.06, BASE + fh * 2, z);
   boxAt(g, w + 0.01, 0.025, d + 0.01, MAT.white(), -0.06, BASE + fh, z);
   const zf = z + d / 2;
   // Two engine bays
@@ -583,7 +583,7 @@ function buildFire(g, r) {
   // Hose tower
   const tx = 0.4, tz = -0.3;
   facadeBlock(g, 0.16, 0.95, 0.16, tx, BASE, tz, { style: 'brick', wall: brick, bay: 0.08, floor: 0.19 });
-  add(g, G.cone(0.13, 0.12, 4), M(0x5b2c2c), tx, BASE + 1.01, tz, { ry: Math.PI / 4 });
+  add(g, G.cone(0.13, 0.12, 4), roofOf('fire'), tx, BASE + 1.01, tz, { ry: Math.PI / 4 });
   const sA = add(g, G.sphere(0.025, 8, 6), M(0xff3b30, { e: 0xff1a0a, ei: 2 }), tx - 0.04, BASE + 0.96, tz + 0.085, { shadow: false });
   const sB = add(g, G.sphere(0.025, 8, 6), M(0xff3b30, { e: 0xff1a0a, ei: 2 }), tx + 0.04, BASE + 0.96, tz + 0.085, { shadow: false });
   sA.userData.noBake = sB.userData.noBake = true;
@@ -677,10 +677,15 @@ function buildRoad(g, mask, r) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Homes are rebuilt as they fill up: houses → walk-ups → apartment blocks.
 const RES_STAGES = [
-  [[buildHouse, 4], [buildKenneyHouse, 2]],
+  [[buildHouse, 1]],
   [[(g, r) => buildApartment(g, r, false), 1]],
   [[(g, r) => buildApartment(g, r, true), 1]],
 ];
+// Styles the player can pick (ids match BUILD_STYLES in constants.js)
+const STYLES = {
+  commercial: { shops: buildShops, midrise: buildMidrise, office: buildOffice },
+  industrial: { factory: buildFactory, warehouse: buildWarehouse, refinery: buildRefinery },
+};
 /** Residential density stage (0–2) for a population, with hysteresis so a
  *  home doesn't flip back and forth around a threshold. */
 export function residentialStage(pop, cur = 0) {
@@ -711,6 +716,7 @@ function weighted(list, r) {
 }
 
 let indicatorMat = null;
+const badgeMats = {};
 
 /**
  * Build a tile.
@@ -719,6 +725,7 @@ let indicatorMat = null;
  * opts.seed   – stable randomness (roads are rebuilt when neighbours change)
  * opts.spawn  – play the grow-in animation
  * opts.stage  – residential density stage 0–2 (see residentialStage)
+ * opts.style  – commercial/industrial style id; unset picks a seeded mix
  */
 export function buildTileMesh(type, opts = {}) {
   const group = new THREE.Group();
@@ -730,7 +737,7 @@ export function buildTileMesh(type, opts = {}) {
     buildRoad(body, opts.mask ?? {}, r);
   } else if (BUILDERS[type]) {
     const list = type === 'residential' ? RES_STAGES[opts.stage ?? 0] : BUILDERS[type];
-    weighted(list, r)(body, r);
+    (STYLES[type]?.[opts.style] ?? weighted(list, r))(body, r);
     body.rotation.y = opts.facing ?? 0;
   } else {
     const def = ZONE_DEF[type];
@@ -740,6 +747,17 @@ export function buildTileMesh(type, opts = {}) {
   // Move animated pieces' callbacks onto the outer group, then bake the rest
   group.userData.anim = body.userData.anim ?? [];
   bake(body);
+
+  // Service buildings carry a floating sign so they stand out from the zones
+  let sign = null;
+  if (TYPE_ICONS[type]) {
+    const mat = badgeMats[type] ??= new THREE.SpriteMaterial({ map: badgeTexture(TYPE_ICONS[type], themeHex(type)), transparent: true });
+    const top = new THREE.Box3().setFromObject(body).max.y;
+    sign = new THREE.Sprite(mat);
+    sign.scale.setScalar(0.3);
+    sign.position.y = Math.min(top, 1.5) + 0.26;
+    group.add(sign);
+  }
 
   if (type !== 'road' && type !== 'power') {
     indicatorMat ??= new THREE.SpriteMaterial({ map: noPowerTexture(), depthTest: false, transparent: true });
@@ -752,7 +770,7 @@ export function buildTileMesh(type, opts = {}) {
     group.add(badge);
     const baseY = badge.position.y;
     group.userData.anim.push(t => { if (badge.visible) badge.position.y = baseY + Math.sin(t * 3) * 0.06; });
-    group.userData.setPowered = p => { badge.visible = !p; };
+    group.userData.setPowered = p => { badge.visible = !p; if (sign) sign.visible = p; };
   }
 
   if (opts.spawn) {

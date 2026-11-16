@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { calcStats, yearlyIncome, yearlyUpkeep } from './simulation.js';
-import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, DAYS_PER_MONTH } from './constants.js';
+import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, DAYS_PER_MONTH, BUILD_STYLES } from './constants.js';
 import { LEVELS, getLevel, ERAS } from './levels.js';
 import { objectives, advise } from './advisor.js';
 
@@ -327,6 +327,20 @@ export function initLevelComplete() {
 export function setActiveTool(tool) {
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   showTooltip(tool);
+  renderStyleBar(tool);
+}
+
+/** Style chips under the toolbar for zones that offer a choice of building. */
+function renderStyleBar(tool) {
+  const bar = $('style-bar');
+  const def = BUILD_STYLES[tool];
+  if (!def) { bar.style.display = 'none'; return; }
+  const current = state.styles[tool] ?? '';
+  const chips = [{ id: '', icon: '✨', label: def.auto }, ...def.options];
+  bar.innerHTML = `<span class="style-label">${ZONE_DEF[tool].label} style</span>` + chips.map(c =>
+    `<button data-style="${c.id}" class="${c.id === current ? 'active' : ''}">${c.icon} ${c.label}</button>`).join('');
+  bar.dataset.tool = tool;
+  bar.style.display = 'flex';
 }
 
 export function initToolbar(onToolChange) {
@@ -338,6 +352,15 @@ export function initToolbar(onToolChange) {
     });
     btn.addEventListener('mouseenter', () => showTooltip(btn.dataset.tool));
     btn.addEventListener('mouseleave', () => showTooltip(document.querySelector('.tool-btn.active')?.dataset.tool));
+  });
+
+  $('style-bar').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const tool = $('style-bar').dataset.tool;
+    if (btn.dataset.style) state.styles[tool] = btn.dataset.style;
+    else delete state.styles[tool];
+    renderStyleBar(tool);
   });
 
   $('tax-rate').addEventListener('input', e => {
@@ -407,7 +430,7 @@ export function renderYearProgress() {
 export function setTaxCap(cap) {
   $('tax-rate').max = cap;
   $('tax-rate').value = state.taxRate;
-  $('tax-cap').textContent = `max ${cap}`;
+  $('tax-cap').textContent = `/ ${cap}%`;
 }
 
 export { showScreen };

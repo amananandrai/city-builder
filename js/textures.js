@@ -312,6 +312,23 @@ export function noPowerTexture() {
   });
 }
 
+/** Round sign with an emoji, ringed in the building type's colour. */
+export function badgeTexture(icon, ringHex) {
+  return cached(`badge_${icon}_${ringHex}`, () => {
+    const S = 128;
+    const [c, ctx] = makeCanvas(S, S);
+    ctx.beginPath(); ctx.arc(S / 2, S / 2, 58, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbfaf6'; ctx.fill();
+    ctx.lineWidth = 10; ctx.strokeStyle = css(ringHex); ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.arc(S / 2, S / 2, 63, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = '64px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2b2f36'; // for platforms that draw this glyph as plain text
+    ctx.fillText(icon, S / 2, S / 2 + 4);
+    return finish(c, { repeat: false });
+  });
+}
+
 /** Vertical sky gradient for the scene background. */
 export function skyTexture() {
   return cached('sky', () => {
