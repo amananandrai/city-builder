@@ -185,6 +185,18 @@
 
   <div id="style-bar"></div>
 
+  <!-- ══ COVERAGE VIEWS ══ -->
+  <div id="overlay-bar">
+    <span class="ov-title">Views</span>
+    <button data-overlay="power" title="Power coverage">⚡</button>
+    <button data-overlay="fire" title="Fire station coverage">🚒</button>
+    <button data-overlay="police" title="Police coverage">🚔</button>
+    <button data-overlay="school" title="School coverage">🏫</button>
+    <button data-overlay="park" title="Park coverage">🌳</button>
+    <button data-overlay="government" title="Government office coverage">🏛</button>
+    <div id="overlay-legend"><i class="ok"></i>Covered<br><i class="bad"></i>Not covered</div>
+  </div>
+
   <!-- ══ OBJECTIVES + ADVISOR ══ -->
   <div id="side-panel">
     <div id="objectives">
@@ -199,6 +211,10 @@
       <div id="adv-title"></div>
       <div id="adv-text"></div>
       <button id="adv-tool" class="btn-small"></button>
+    </div>
+    <div id="history">
+      <div class="panel-head"><span>📈 Trends</span><span class="hist-legend"><i class="pop"></i>People <i class="cash"></i>Cash</span></div>
+      <canvas id="hist-canvas" width="488" height="110"></canvas>
     </div>
   </div>
 

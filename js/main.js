@@ -5,7 +5,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GRID, CELL, ZONE_DEF, MONTH_MS } from './constants.js';
 import { state, getTile, setTile, tileKey, resetState } from './state.js';
 import { buildTileMesh, animateTile, buildScenery, disposeTile, residentialStage } from './meshes.js';
-import { vehicle, randomTrafficKind, seasonalGrass } from './props.js';
+import { vehicle, randomTrafficKind, seasonalGrass, M, G, add } from './props.js';
+import { createWeather } from './weather.js';
 import { grassTexture } from './textures.js';
 import { createEffects } from './effects.js';
 import { createAtmosphere } from './atmosphere.js';
@@ -125,6 +126,57 @@ scene.add(carGroup);
 // Sky, sun and seasons follow the game calendar; effects show sim events
 const atmosphere = createAtmosphere({ scene, renderer, sun, hemi });
 const effects = createEffects({ scene, camera, renderer });
+const weather = createWeather({ scene, controls });
+
+// ── Coverage overlay ("views") ──
+// Tints every cell a chosen service reaches green, and buildings that need
+// the service but are outside its reach red.
+const overlayMesh = new THREE.InstancedMesh(
+  new THREE.PlaneGeometry(CELL * 0.96, CELL * 0.96).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false, depthTest: false }),
+  GRID * GRID
+);
+overlayMesh.count = 0;
+overlayMesh.renderOrder = 5;
+overlayMesh.frustumCulled = false;
+scene.add(overlayMesh);
+let overlayType = null;
+const OVERLAY_NEEDS = { fire: ['residential', 'commercial', 'industrial'] }; // default: homes
+
+function refreshOverlay() {
+  if (!overlayType) { overlayMesh.count = 0; return; }
+  const power = overlayType === 'power';
+  const r = power ? getLevel(state.currentLevel).constraints.powerRadius : ZONE_DEF[overlayType].serviceRadius;
+  const covered = new Uint8Array(GRID * GRID);
+  for (const k in state.tiles) {
+    const t = state.tiles[k];
+    if (t.type !== overlayType || (!power && !(t.powered && t.roadConnected))) continue;
+    const [sx, sz] = k.split(',').map(Number);
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (power && Math.abs(dx) + Math.abs(dz) > r) continue;
+      const x = sx + dx, z = sz + dz;
+      if (x >= 0 && z >= 0 && x < GRID && z < GRID) covered[x * GRID + z] = 1;
+    }
+  }
+  const needs = OVERLAY_NEEDS[overlayType] ?? ['residential'];
+  const m = new THREE.Matrix4(), good = new THREE.Color(0x2ecc71), bad = new THREE.Color(0xff3b30);
+  let n = 0;
+  for (let x = 0; x < GRID; x++) for (let z = 0; z < GRID; z++) {
+    const t = getTile(x, z);
+    const wants = t && (power ? t.type !== 'road' && t.type !== 'power' : needs.includes(t.type));
+    const isCovered = covered[x * GRID + z];
+    if (!isCovered && !wants) continue;
+    overlayMesh.setMatrixAt(n, m.makeTranslation(worldPos(x, z).setY(0.06)));
+    overlayMesh.setColorAt(n, isCovered ? good : bad);
+    n++;
+  }
+  overlayMesh.count = n;
+  overlayMesh.instanceMatrix.needsUpdate = true;
+  if (overlayMesh.instanceColor) overlayMesh.instanceColor.needsUpdate = true;
+}
+
+/** type: 'power' | a service type | null to switch the view off. */
+function setOverlay(type) { overlayType = type; refreshOverlay(); }
 
 // ═══════════════════════════════════════════════
 //  COORDINATE HELPERS
@@ -156,7 +208,9 @@ function clearCity() {
   for (const k in state.tiles) removeMesh(state.tiles[k].mesh);
   // Remove all cars
   state.cars.forEach(c => carGroup.remove(c.mesh));
+  walkers.forEach(w => carGroup.remove(w.mesh)); walkers.length = 0;
   effects.clear();
+  weather.clear();
 }
 
 // ═══════════════════════════════════════════════
@@ -284,6 +338,7 @@ function restageHome(gx, gz, t, stage) {
 }
 
 on('month', ({ net, movedIn }) => {
+  weather.roll(state.month);
   // Homes grow from houses into apartment blocks as they fill
   for (const k in state.tiles) {
     const t = state.tiles[k];
@@ -324,7 +379,7 @@ on('fire', ({ key, damage, protection }) => {
 //  TRAFFIC
 // ═══════════════════════════════════════════════
 const CAR_SPEED = 1.1;  // world units per second
-const MAX_CARS  = 24;
+const MAX_CARS  = 40;
 const LANE      = 0.2;  // offset from road centre (drive on the right)
 
 /** BFS over road tiles from start; returns a random path of ≥3 tiles. */
@@ -349,7 +404,7 @@ function randomRoadPath(start) {
 }
 
 /** Convert a tile path into lane-offset world waypoints. */
-function laneWaypoints(path) {
+function laneWaypoints(path, lane = LANE) {
   const pts = path.map(([x, z]) => worldPos(x, z));
   const right = (a, b) => {
     const d = new THREE.Vector3().subVectors(b, a).normalize();
@@ -361,7 +416,7 @@ function laneWaypoints(path) {
     let off;
     if (rIn && rOut && rIn.dot(rOut) < 0.5) off = rIn.clone().add(rOut);
     else off = (rIn ?? rOut).clone();
-    return p.clone().addScaledVector(off, LANE).setY(0.02);
+    return p.clone().addScaledVector(off, lane).setY(0.02);
   });
 }
 
@@ -424,13 +479,19 @@ function spawnCar() {
     .filter(([, t]) => t.type === 'road')
     .map(([k]) => k.split(',').map(Number));
   // Traffic scales with the road network so short streets don't jam
-  if (roads.length < 3 || state.cars.length >= Math.min(MAX_CARS, Math.floor(roads.length / 3))) return;
+  // Traffic scales with the road network (so short streets don't jam) and
+  // with how many people live in the city
+  const pop = Object.values(state.tiles).reduce((n, t) => n + (t.population || 0), 0);
+  const limit = Math.min(MAX_CARS, Math.floor(roads.length / 3), 2 + Math.floor(pop / 10));
+  if (roads.length < 3 || state.cars.length >= limit) return;
 
   const path = randomRoadPath(roads[Math.floor(Math.random() * roads.length)]);
   if (!path) return;
   const waypoints = laneWaypoints(path);
 
-  const carMesh = vehicle(randomTrafficKind());
+  // The occasional patrol car when the city has a working police station
+  const hasPolice = Object.values(state.tiles).some(t => t.type === 'police' && t.powered && t.roadConnected);
+  const carMesh = hasPolice && Math.random() < 0.08 ? vehicle('police', 0x1c2833) : vehicle(randomTrafficKind());
   carMesh.scale.setScalar(0.85);
   carMesh.traverse(c => { if (c.isMesh) c.castShadow = true; });
   carMesh.position.copy(waypoints[0]);
@@ -478,6 +539,47 @@ function updateCars(dt) {
 }
 
 setInterval(spawnCar, 1800);
+
+// ── Pedestrians ──
+// Small figures that stroll along the pavements; more appear as the city grows.
+const walkers = [];
+const MAX_WALKERS = 36;
+const SHIRTS = [0xe74c3c, 0x3498db, 0xf1c40f, 0x2ecc71, 0x9b59b6, 0xecf0f1, 0xe67e22, 0x34495e];
+const SKIN = [0xf1c9a5, 0xd9a37a, 0x9c6b4a, 0x6b4630];
+
+function spawnWalker() {
+  const roads = Object.entries(state.tiles)
+    .filter(([, t]) => t.type === 'road')
+    .map(([k]) => k.split(',').map(Number));
+  const pop = Object.values(state.tiles).reduce((n, t) => n + (t.population || 0), 0);
+  if (roads.length < 3 || walkers.length >= Math.min(MAX_WALKERS, roads.length, Math.floor(pop / 6))) return;
+  const path = randomRoadPath(roads[Math.floor(Math.random() * roads.length)]);
+  if (!path) return;
+  const waypoints = laneWaypoints(path, 0.52).map(p => p.setY(0.045)); // on the pavement
+  const mesh = new THREE.Group();
+  add(mesh, G.cyl(0.016, 0.02, 0.075, 6), M(SHIRTS[Math.floor(Math.random() * SHIRTS.length)], { r: 0.8 }), 0, 0.0375, 0);
+  add(mesh, G.sphere(0.017, 8, 6), M(SKIN[Math.floor(Math.random() * SKIN.length)], { r: 0.8 }), 0, 0.09, 0);
+  mesh.position.copy(waypoints[0]);
+  carGroup.add(mesh);
+  walkers.push({ mesh, waypoints, idx: 1, speed: 0.22 + Math.random() * 0.12, phase: Math.random() * 6 });
+}
+
+function updateWalkers(dt, t) {
+  for (let i = walkers.length - 1; i >= 0; i--) {
+    const w = walkers[i];
+    const target = w.waypoints[w.idx];
+    const cell = gridFromWorld(w.mesh.position.x, w.mesh.position.z);
+    const here = cell && getTile(cell.x, cell.z);
+    if (!target || !here) { carGroup.remove(w.mesh); walkers.splice(i, 1); continue; }
+    const dx = target.x - w.mesh.position.x, dz = target.z - w.mesh.position.z;
+    const dist = Math.hypot(dx, dz), step = w.speed * dt;
+    if (dist <= step) { w.mesh.position.x = target.x; w.mesh.position.z = target.z; w.idx++; continue; }
+    w.mesh.position.x += dx / dist * step;
+    w.mesh.position.z += dz / dist * step;
+    w.mesh.position.y = 0.045 + Math.abs(Math.sin(t * 9 + w.phase)) * 0.008; // walking bob
+  }
+}
+setInterval(spawnWalker, 900);
 
 // ═══════════════════════════════════════════════
 //  INPUT
@@ -701,12 +803,13 @@ window.addEventListener('keydown', e => {
   setSpeed(state.paused ? state.speed : 0);
 });
 
-registerGame({ startLevel, beginLevel, setSpeed });
+registerGame({ startLevel, beginLevel, setSpeed, setOverlay });
 
 // ═══════════════════════════════════════════════
 //  RENDER LOOP
 // ═══════════════════════════════════════════════
 const clock = new THREE.Clock();
+let overlayFrame = 0;
 function animate() {
   requestAnimationFrame(animate);
   const rawDt = clock.getDelta();
@@ -714,6 +817,9 @@ function animate() {
   const t  = clock.elapsedTime;
   controls.update();
   updateCars(dt);
+  updateWalkers(dt, t);
+  weather.update(dt);
+  if (overlayType && (overlayFrame++ % 20 === 0)) refreshOverlay(); // follows building changes
   // Simulation clock: one tick per in-game month, frozen while paused or a
   // full-screen overlay (briefing, level complete…) is open.
   const monthLen = MONTH_MS / 1000;
@@ -729,7 +835,7 @@ function animate() {
     renderYearProgress();
   }
   renderTimeControls();
-  atmosphere.update(state.monthsPlayed, Math.min(1, state.yearClock / monthLen), state.month);
+  atmosphere.update(state.monthsPlayed, Math.min(1, state.yearClock / monthLen), state.month, weather.overcast);
   effects.setLabelsVisible(!modalOpen());
   effects.update(dt, simMonths, t);
   for (const k in state.tiles) {

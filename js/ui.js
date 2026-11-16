@@ -67,6 +67,36 @@ on('month', ({ stats }) => {
   lastMonth = { pop: stats.pop, happiness: Math.round(stats.happiness) };
 });
 
+// ── History chart: population and cash over the last few years ────────────
+const history = [];
+function drawHistory() {
+  const c = $('hist-canvas'), ctx = c.getContext('2d');
+  const W = c.width, H = c.height, pad = 6;
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+  for (const y of [pad, H / 2, H - pad]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  if (history.length < 2) return;
+  const line = (key, color) => {
+    const vals = history.map(h => h[key]);
+    const lo = Math.min(...vals, 0), hi = Math.max(...vals, lo + 1);
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    vals.forEach((v, i) => {
+      const x = (i / (vals.length - 1)) * W, y = H - pad - ((v - lo) / (hi - lo)) * (H - pad * 2);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  };
+  line('cash', '#2ecc71');
+  line('pop', '#7dd3fc');
+}
+on('month', ({ stats }) => {
+  if (state.monthsPlayed <= 1) history.length = 0; // new level
+  history.push({ pop: stats.pop, cash: state.money });
+  if (history.length > 60) history.shift();
+  drawHistory();
+});
+
 // ── Happiness breakdown (hover the happiness stat) ────────────────────────
 let lastStats = null;
 function renderHappyTip() {
@@ -211,6 +241,7 @@ function showScreen(id) {
   for (const s of SCREENS) $(s).style.display = s === id ? 'flex' : 'none';
   const inGame = id === null || id === 'briefing';
   $('side-panel').style.display = inGame ? 'flex' : 'none';
+  $('overlay-bar').style.display = inGame ? 'flex' : 'none';
   if (!id) showTooltip(document.querySelector('.tool-btn.active')?.dataset.tool);
   else tooltip.style.display = 'none';
 }
@@ -500,6 +531,16 @@ export function initToolbar(onToolChange) {
   const happyStat = $('happy-stat');
   happyStat.addEventListener('mouseenter', () => { $('happy-tip').style.display = 'block'; renderHappyTip(); });
   happyStat.addEventListener('mouseleave', () => { $('happy-tip').style.display = 'none'; });
+
+  // Coverage views: click to show, click again to hide
+  $('overlay-bar').addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const on = !btn.classList.contains('active');
+    document.querySelectorAll('#overlay-bar button').forEach(b => b.classList.toggle('active', on && b === btn));
+    $('overlay-legend').style.display = on ? 'block' : 'none';
+    game.setOverlay(on ? btn.dataset.overlay : null);
+  });
 
   // Time controls
   document.querySelectorAll('#time-ctrl button').forEach(b =>

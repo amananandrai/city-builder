@@ -5,6 +5,8 @@
  *  of it is night). It is deliberately slower than a month so the sky doesn't
  *  strobe at 3× speed, and not a whole year so night falls in every season.
  *
+ *  `overcast` (0–1, from weather.js) dims the sun and greys the sky.
+ *
  *  Seasons: Dec–Feb snow, Mar–May fresh growth, Sep–Nov autumn leaves.
  */
 import * as THREE from 'three';
@@ -61,7 +63,7 @@ export function createAtmosphere({ scene, renderer, sun, hemi }) {
    * monthsPlayed: whole months since the level began; frac: 0–1 progress
    * through the current month; month: calendar month 0–11.
    */
-  function update(monthsPlayed, frac, month) {
+  function update(monthsPlayed, frac, month, overcast = 0) {
     // ── Day / night ────────────────────────────────────────────────────
     const p = ((monthsPlayed + frac) / DAY_MONTHS + START_PHASE) % 1;
     const isDay = p < DAY_FRAC;
@@ -83,16 +85,18 @@ export function createAtmosphere({ scene, renderer, sun, hemi }) {
       sun.intensity = 0.55 * smooth(0, 0.3, elev);
       sun.color.copy(MOON);
     }
+    sun.intensity *= 1 - 0.55 * overcast; // cloud cover softens the sun
     hemi.color.copy(HEMI_NIGHT).lerp(HEMI_DAY, day);
     hemi.intensity = 0.42 - 0.07 * day;
-    renderer.toneMappingExposure = baseExposure * (0.62 + 0.38 * day);
+    renderer.toneMappingExposure = baseExposure * (0.62 + 0.38 * day) * (1 - 0.22 * overcast);
     setNight(smooth(0.3, 0.8, night));
     setEnvironment(0.2 + 0.8 * day);
 
     // Sky + fog (canvas redraw is cheap but there's no need to do it every frame)
     if (frame++ % 4 === 0) {
       for (let i = 0; i < 3; i++) {
-        stops[i].setHex(SKY.night[i]).lerp(a.setHex(SKY.day[i]), day).lerp(b.setHex(SKY.dusk[i]), twilight * 0.75);
+        stops[i].setHex(SKY.night[i]).lerp(a.setHex(SKY.day[i]), day).lerp(b.setHex(SKY.dusk[i]), twilight * 0.75)
+          .lerp(a.setHex(0x8b96a3).multiplyScalar(0.25 + 0.75 * day), overcast * 0.7);
       }
       const g = ctx.createLinearGradient(0, 0, 0, 512);
       g.addColorStop(0, '#' + stops[0].getHexString());
