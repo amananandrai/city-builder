@@ -112,6 +112,10 @@ export function updateRoadConnectivity() {
       }
     }
   }
+  for (const k in state.tiles) {
+    const t = state.tiles[k];
+    t.mesh?.userData.setRoad?.(t.roadConnected);
+  }
 }
 
 // ── Efficiency ─────────────────────────────────────────────────────────────
@@ -398,6 +402,16 @@ export function calcStats() {
     schoolCoveredPop, govCoveredPop,
     crimeData, maps,
     taxEffect: tax,
+    // What adds to and subtracts from happiness (before the 0–100 clamp)
+    happyParts: [
+      ['Base', 100],
+      ['Parks', parkBonus], ['Government', govBonus], ['Schools', schoolBonus2],
+      ['Police', policeBonus], ['Fire stations', fireBonus],
+      ['Taxes', tax.happiness],
+      ['Unemployment', -(unempPenalty + noGovPenalty)],
+      ['Crime', -crimeHappinessPenalty],
+      ['Power shortage', -powerShort],
+    ].filter(([, v]) => Math.abs(v) >= 0.5),
     growth: growthDemand(pop, jobs, happiness),
   };
 }
@@ -459,7 +473,7 @@ export function tick() {
   if (state.month >= MONTHS_PER_YEAR) { state.month = 0; state.year++; }
 
   updateHUD(s);
-  emit('month', { net, movedIn });
+  emit('month', { net, movedIn, stats: s });
 
   // ── Event alerts (ongoing advice lives in the advisor panel) ──────────
   if (state.money < 0 && !wasInDebt)

@@ -493,3 +493,21 @@ canvas { display:block; }
 }
 #style-bar button:hover { background:rgba(255,255,255,0.1); color:#fff; }
 #style-bar button.active { background:rgba(251,191,36,0.2); border-color:var(--accent); color:#fff; }
+
+/* ══════════════════════════════════════
+   HUD TRENDS, HAPPINESS BREAKDOWN, CONFETTI
+══════════════════════════════════════ */
+.trend { font-style:normal; font-size:0.58rem; margin-left:3px; width:0.7em; display:inline-block; }
+.trend.up { color:#2ecc71; } .trend.down { color:#ff7b6b; }
+#happy-stat { cursor:help; }
+#happy-tip {
+  position:fixed; z-index:26; display:none; width:220px; pointer-events:none;
+  background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:10px 12px; font-size:0.76rem; color:var(--text-2); backdrop-filter:blur(8px);
+}
+#happy-tip .ht-title { color:var(--accent); font-weight:700; font-size:0.7rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px; }
+#happy-tip .ht-row { display:flex; justify-content:space-between; padding:2px 0; }
+#happy-tip .ht-row b { color:var(--text); }
+#happy-tip .ht-row b.ok { color:#2ecc71; } #happy-tip .ht-row b.bad { color:#ff7b6b; }
+#happy-tip .ht-row.total { border-top:1px solid var(--border); margin-top:5px; padding-top:6px; color:var(--text); }
+#confetti { position:fixed; inset:0; z-index:400; pointer-events:none; }

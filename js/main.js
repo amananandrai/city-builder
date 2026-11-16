@@ -278,6 +278,7 @@ function restageHome(gx, gz, t, stage) {
   t.mesh = buildTileMesh('residential', { facing: facingFor(gx, gz), seed: tileSeed(gx, gz), spawn: true, stage });
   t.mesh.position.copy(worldPos(gx, gz));
   t.mesh.userData.setPowered?.(t.powered);
+  t.mesh.userData.setRoad?.(t.roadConnected);
   scene.add(t.mesh);
   effects.dust(t.mesh.position);
 }
