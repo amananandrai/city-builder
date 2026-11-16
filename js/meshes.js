@@ -6,6 +6,7 @@
  *
  * Each tile group exposes:
  *   userData.setPowered(bool) – toggles the floating "no power" badge
+ *   userData.setRoad(bool)    – toggles the "no road access" badge
  *   userData.anim[]           – per-frame callbacks (smoke, sirens, flags)
  * and is driven by animateTile() from the render loop.
  */
@@ -18,7 +19,7 @@ import {
 } from './props.js';
 import {
   grassTexture, asphaltTexture, paverTexture, shingleTexture, shopfrontTexture,
-  awningTexture, signTexture, shutterTexture, fieldTexture, noPowerTexture, badgeTexture,
+  awningTexture, signTexture, shutterTexture, fieldTexture, noPowerTexture, noRoadTexture, badgeTexture,
 } from './textures.js';
 
 const HALF = CELL / 2;   // 0.6
@@ -715,7 +716,7 @@ function weighted(list, r) {
   return list[0][0];
 }
 
-let indicatorMat = null;
+let indicatorMat = null, noRoadMat = null;
 const badgeMats = {};
 
 /**
@@ -761,6 +762,7 @@ export function buildTileMesh(type, opts = {}) {
 
   if (type !== 'road' && type !== 'power') {
     indicatorMat ??= new THREE.SpriteMaterial({ map: noPowerTexture(), depthTest: false, transparent: true });
+    noRoadMat ??= new THREE.SpriteMaterial({ map: noRoadTexture(), depthTest: false, transparent: true });
     const top = new THREE.Box3().setFromObject(body).max.y;
     const badge = new THREE.Sprite(indicatorMat);
     badge.scale.setScalar(0.28);
@@ -770,7 +772,15 @@ export function buildTileMesh(type, opts = {}) {
     group.add(badge);
     const baseY = badge.position.y;
     group.userData.anim.push(t => { if (badge.visible) badge.position.y = baseY + Math.sin(t * 3) * 0.06; });
-    group.userData.setPowered = p => { badge.visible = !p; if (sign) sign.visible = p; };
+    // One badge slot: missing power is the bigger problem, so it wins
+    let powered = true, road = true;
+    const refresh = () => {
+      badge.visible = !powered || !road;
+      badge.material = !powered ? indicatorMat : noRoadMat;
+      if (sign) sign.visible = !badge.visible;
+    };
+    group.userData.setPowered = p => { powered = p; refresh(); };
+    group.userData.setRoad = c => { road = c; refresh(); };
   }
 
   if (opts.spawn) {

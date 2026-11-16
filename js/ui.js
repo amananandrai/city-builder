@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { calcStats, yearlyIncome, yearlyUpkeep } from './simulation.js';
 import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, DAYS_PER_MONTH, BUILD_STYLES } from './constants.js';
 import { LEVELS, getLevel, ERAS } from './levels.js';
+import { on } from './events.js';
 import { objectives, advise } from './advisor.js';
 
 const $ = id => document.getElementById(id);
@@ -27,15 +28,73 @@ export const progress = {
 const costOf = type => Math.round(ZONE_DEF[type].cost * getLevel(state.currentLevel).constraints.costMult);
 
 // ── HUD ───────────────────────────────────────────────────────────────────
+// ── Animated counters ─────────────────────────────────────────────────────
+const tweens = new Map();
+/** Set a numeric HUD value, counting up/down to it instead of jumping. */
+function setNumber(el, value) {
+  let st = tweens.get(el);
+  if (!st) {
+    tweens.set(el, { shown: value });
+    el.textContent = value.toLocaleString();
+    return;
+  }
+  if (st.to === value || (!st.running && st.shown === value)) return;
+  st.from = st.shown; st.to = value; st.t0 = performance.now();
+  if (st.running) return;
+  st.running = true;
+  const step = now => {
+    const k = Math.min(1, (now - st.t0) / 450);
+    st.shown = Math.round(st.from + (st.to - st.from) * (1 - (1 - k) ** 3));
+    el.textContent = st.shown.toLocaleString();
+    if (k < 1) requestAnimationFrame(step); else st.running = false;
+  };
+  requestAnimationFrame(step);
+}
+
+// ── Month-over-month trend arrows ─────────────────────────────────────────
+let lastMonth = null;
+function setTrend(id, delta) {
+  const el = $(id);
+  el.textContent = delta > 0 ? '▲' : delta < 0 ? '▼' : '';
+  el.className = `trend ${delta > 0 ? 'up' : 'down'}`;
+}
+on('month', ({ stats }) => {
+  if (state.monthsPlayed <= 1) lastMonth = null; // new level
+  if (lastMonth) {
+    setTrend('t-pop', stats.pop - lastMonth.pop);
+    setTrend('t-happy', Math.round(stats.happiness) - lastMonth.happiness);
+  } else { setTrend('t-pop', 0); setTrend('t-happy', 0); }
+  lastMonth = { pop: stats.pop, happiness: Math.round(stats.happiness) };
+});
+
+// ── Happiness breakdown (hover the happiness stat) ────────────────────────
+let lastStats = null;
+function renderHappyTip() {
+  const tip = $('happy-tip');
+  if (tip.style.display !== 'block' || !lastStats) return;
+  const rows = lastStats.happyParts.map(([label, v]) => {
+    const n = Math.round(v);
+    const cls = label === 'Base' ? '' : n > 0 ? 'ok' : 'bad';
+    return `<div class="ht-row"><span>${label}</span><b class="${cls}">${label === 'Base' ? n : (n > 0 ? '+' : '−') + Math.abs(n)}</b></div>`;
+  }).join('');
+  tip.innerHTML = `<div class="ht-title">Happiness</div>${rows}` +
+    `<div class="ht-row total"><span>Total (0–100)</span><b>${Math.round(lastStats.happiness)}%</b></div>`;
+  const r = $('happy-stat').getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(innerWidth - 228, r.left + r.width / 2 - 110))}px`;
+  tip.style.bottom = `${innerHeight - r.top + 14}px`;
+}
+
 export function updateHUD(s) {
   if (!s) s = calcStats();
+  lastStats = s;
+  renderHappyTip();
   const level = getLevel(state.currentLevel);
   const goals = level.goals;
 
-  $('s-pop').textContent      = s.pop.toLocaleString();
+  setNumber($('s-pop'), s.pop);
   $('s-pop-goal').textContent = `/${goals.pop.toLocaleString()}`;
-  $('s-jobs').textContent     = s.jobs.toLocaleString();
-  $('s-money').textContent    = state.money.toLocaleString();
+  setNumber($('s-jobs'), s.jobs);
+  setNumber($('s-money'), state.money);
   $('s-power').textContent    = s.powerUsed;
   $('s-pmax').textContent     = s.powerMax;
   renderDate();
@@ -311,6 +370,44 @@ export function showLevelComplete(levelId, s) {
   $('lc-next-btn').textContent  = isLast ? 'Level select' : 'Next Level →';
   $('lc-next-btn').dataset.next = isLast ? 'levels' : levelId + 1;
   showScreen('level-complete');
+  launchConfetti();
+}
+
+/** Short confetti burst over the level-complete card. */
+function launchConfetti() {
+  const c = document.createElement('canvas');
+  c.id = 'confetti';
+  c.width = innerWidth; c.height = innerHeight;
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const colors = ['#4a90d9', '#f39c12', '#8e44ad', '#1abc9c', '#e74c3c', '#f1c40f', '#2ecc71'];
+  const parts = Array.from({ length: 160 }, (_, i) => {
+    const side = i % 2 ? 1 : -1; // two cannons, bottom-left and bottom-right
+    const a = (-Math.PI / 2) - side * (0.25 + Math.random() * 0.7);
+    const v = 9 + Math.random() * 11;
+    return {
+      x: innerWidth / 2 + side * innerWidth * 0.32, y: innerHeight * 0.85,
+      vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      w: 6 + Math.random() * 6, h: 3 + Math.random() * 4,
+      rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, color: colors[i % colors.length],
+    };
+  });
+  const t0 = performance.now();
+  let last = t0;
+  const frame = now => {
+    const age = (now - t0) / 1000, dt = Math.min(2, (now - last) / 16.7);
+    last = now;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.globalAlpha = Math.max(0, Math.min(1, (3.4 - age) / 0.8));
+    for (const p of parts) {
+      p.vy += 0.28 * dt; p.vx *= 0.992; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.rot * 2)) + 1);
+      ctx.restore();
+    }
+    if (age < 3.4 && c.isConnected) requestAnimationFrame(frame); else c.remove();
+  };
+  requestAnimationFrame(frame);
 }
 
 export function initLevelComplete() {
@@ -399,6 +496,10 @@ export function initToolbar(onToolChange) {
     if (!state.running) game.beginLevel();
   });
   $('br-levels').addEventListener('click', openLevelSelect);
+
+  const happyStat = $('happy-stat');
+  happyStat.addEventListener('mouseenter', () => { $('happy-tip').style.display = 'block'; renderHappyTip(); });
+  happyStat.addEventListener('mouseleave', () => { $('happy-tip').style.display = 'none'; });
 
   // Time controls
   document.querySelectorAll('#time-ctrl button').forEach(b =>

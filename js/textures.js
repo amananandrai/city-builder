@@ -312,6 +312,24 @@ export function noPowerTexture() {
   });
 }
 
+/** Floating "no road access" badge: a road with a dashed centre line. */
+export function noRoadTexture() {
+  return cached('noroad', () => {
+    const [c, ctx] = makeCanvas(128, 128);
+    ctx.fillStyle = '#e67e22';
+    ctx.beginPath(); ctx.arc(64, 64, 56, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 8; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(64, 64, 50, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#3a3d42';
+    ctx.beginPath(); ctx.moveTo(50, 14); ctx.lineTo(78, 14); ctx.lineTo(96, 114); ctx.lineTo(32, 114); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    for (const [y, h, w] of [[24, 14, 4], [48, 18, 5], [78, 24, 7]]) ctx.fillRect(64 - w / 2, y, w, h);
+    ctx.restore();
+    return finish(c, { repeat: false });
+  });
+}
+
 /** Round sign with an emoji, ringed in the building type's colour. */
 export function badgeTexture(icon, ringHex) {
   return cached(`badge_${icon}_${ringHex}`, () => {
