@@ -1,7 +1,13 @@
 // ── Grid & world constants ──
 export const GRID    = 24;   // cells per side
 export const CELL    = 1.2;  // world units per cell
-export const TICK_MS = 5000; // ms per simulation year
+export const MONTH_MS = 4000; // ms per in-game month at 1x (1 year = 48 s)
+export const MONTHS_PER_YEAR = 12;
+export const DAY_MONTHS = 8;     // one day/night cycle lasts this many in-game months
+export const DAYS_PER_MONTH  = 30;
+// ── Tax & demand tuning ──
+export const TAX_COMFORT = 8; // % rate residents consider fair; above hurts, below helps
+export const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Zone definitions ──
 // pop:            base population capacity

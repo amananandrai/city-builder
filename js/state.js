@@ -4,13 +4,16 @@
  * currentLevel – active level id (1–50)
  * running      – the level briefing was dismissed and years are ticking
  * paused/speed – player time controls (speed is 1, 2 or 3)
- * yearClock    – seconds elapsed in the current year
+ * yearClock    – seconds elapsed in the current month
+ * month        – 0–11, the simulation ticks once per month
  * tiles        – map of "x,z" -> TileData
  *   TileData: { type, mesh, powered, roadConnected, population }
  */
 export const state = {
   money:        10000,
   year:         1,
+  month:        3,   // 0–11 (cities are founded in spring)
+  monthsPlayed: 0,
   taxRate:      8,
   currentLevel: 1,
   tiles:        {},
@@ -31,6 +34,8 @@ export const delTile  = (x, z) => { delete state.tiles[tileKey(x, z)]; };
 export function resetState(level) {
   state.money   = level.startMoney;
   state.year    = 1;
+  state.month   = 3;
+  state.monthsPlayed = 0;
   state.taxRate = Math.min(8, level.constraints.taxCapPct);
   state.tiles   = {};
   state.cars    = [];

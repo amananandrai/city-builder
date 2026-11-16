@@ -73,6 +73,13 @@ export function facadeTexture(style, wallHex) {
     const [c, ctx] = makeCanvas(S, S);
     ctx.fillStyle = css(wallHex);
     ctx.fillRect(0, 0, S, S);
+    // Companion emissive map: black except windows that light up at night
+    const [gc, gctx] = makeCanvas(S, S);
+    gctx.fillStyle = '#000'; gctx.fillRect(0, 0, S, S);
+    const glow = (x, y, w, h) => {
+      gctx.fillStyle = Math.random() < 0.3 ? '#bfd4e6' : '#ffd98a';
+      gctx.fillRect(x, y, w, h);
+    };
 
     if (style === 'brick') {
       ctx.fillStyle = shade(wallHex, 1.25);
@@ -94,11 +101,13 @@ export function facadeTexture(style, wallHex) {
       for (let col = 0; col < 4; col++) {
         const x0 = col * C, y0 = row * C;
         const lit = Math.random() < 0.22;
+        const nightLit = lit || Math.random() < 0.38;
         if (style === 'house' || style === 'brick' || style === 'apartment') {
           const wx = x0 + 18, wy = y0 + 14, ww = 28, wh = 34;
           ctx.fillStyle = style === 'brick' ? '#d9d2c3' : '#f4f1ea';
           ctx.fillRect(wx - 4, wy - 4, ww + 8, wh + 8);
           glass(ctx, wx, wy, ww, wh, lit);
+          if (nightLit) glow(wx, wy, ww, wh);
           ctx.fillStyle = style === 'brick' ? '#d9d2c3' : '#f4f1ea';
           ctx.fillRect(wx + ww / 2 - 1.5, wy, 3, wh);
           ctx.fillRect(wx, wy + wh / 2 - 1.5, ww, 3);
@@ -112,24 +121,29 @@ export function facadeTexture(style, wallHex) {
           }
         } else if (style === 'office') {
           glass(ctx, x0 + 3, y0 + 4, C - 6, C - 18, lit);
+          if (nightLit) glow(x0 + 3, y0 + 4, C - 6, C - 18);
           ctx.fillStyle = shade(wallHex, 0.8);
           ctx.fillRect(x0, y0 + C - 14, C, 14);
           ctx.fillStyle = 'rgba(255,255,255,0.15)';
           ctx.fillRect(x0, y0 + C - 14, C, 2);
         } else if (style === 'glass') {
           glass(ctx, x0, y0, C, C, lit && Math.random() < 0.6);
+          if (nightLit && Math.random() < 0.7) glow(x0 + 3, y0 + 3, C - 5, C - 3);
           ctx.fillStyle = shade(wallHex, 1);
           ctx.fillRect(x0, y0, 3, C);
           ctx.fillRect(x0, y0, C, 3);
           ctx.fillRect(x0 + C / 2 - 1, y0, 2, C);
         } else if (style === 'concrete') {
           glass(ctx, x0 + 6, y0 + 8, C - 12, 12, false);
+          if (nightLit) glow(x0 + 6, y0 + 8, C - 12, 12);
           ctx.fillStyle = 'rgba(0,0,0,0.25)';
           ctx.fillRect(x0 + 6, y0 + 20, C - 12, 2);
         }
       }
     }
-    return finish(c);
+    const tex = finish(c);
+    tex.userData.glow = finish(gc);
+    return tex;
   });
 }
 

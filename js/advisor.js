@@ -88,7 +88,11 @@ export function advise(s) {
   }
   if (s.pop > 20 && s.jobs < s.pop * 0.8) return {
     icon: '💼', tool: s.pop > 150 ? 'industrial' : 'commercial', tone: 'warn', title: 'Not enough jobs',
-    text: `${(s.pop - s.jobs).toLocaleString()} residents are unemployed, which drags happiness down. Commercial adds 20 jobs, Industrial 35.`,
+    text: `${(s.pop - s.jobs).toLocaleString()} residents are unemployed. That drags happiness down and slows new residents moving in (growth at ${Math.round(s.growth.jobs * 100)}%). Commercial adds 20 jobs, Industrial 35.`,
+  };
+  if (state.taxRate > 8 && s.growth.tax < 0.85) return {
+    icon: '💸', tone: 'tip', title: 'Taxes are slowing growth',
+    text: `At ${state.taxRate}% residents are unhappy (${Math.round(s.taxEffect.happiness)} happiness) and move in at ${Math.round(s.growth.tax * 100)}% speed. Rates of 8% or less are comfortable.`,
   };
 
   // ── Services, in the order they start to matter ──────────────────────
@@ -128,7 +132,7 @@ export function advise(s) {
       text: `Your ${homes} home${homes === 1 ? '' : 's'} can hold about ${capacity} people, but the goal is ${goals.pop.toLocaleString()}. Add Residential zones beside powered roads — near a school and park for faster growth.`,
     } : {
       icon: '⏳', tone: 'good', title: 'Population is growing',
-      text: `Residents move in each year (${s.pop}/${goals.pop.toLocaleString()}). ${s.activeSchoolCount ? 'Schools nearby speed this up.' : 'A school would double the speed.'} Use ⏩ to fast-forward.`,
+      text: `Residents move in over time (${s.pop}/${goals.pop.toLocaleString()}). ${s.activeSchoolCount ? 'Schools nearby speed this up.' : 'A school would double the speed.'} Use ⏩ to fast-forward.`,
     };
   }
   if (goals.jobs && s.jobs < goals.jobs) return {

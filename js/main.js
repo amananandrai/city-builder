@@ -2,11 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { GRID, CELL, ZONE_DEF, TICK_MS } from './constants.js';
+import { GRID, CELL, ZONE_DEF, MONTH_MS } from './constants.js';
 import { state, getTile, setTile, tileKey, resetState } from './state.js';
-import { buildTileMesh, animateTile, buildScenery, disposeTile } from './meshes.js';
-import { vehicle, randomTrafficKind } from './props.js';
-import { grassTexture, skyTexture } from './textures.js';
+import { buildTileMesh, animateTile, buildScenery, disposeTile, residentialStage } from './meshes.js';
+import { vehicle, randomTrafficKind, seasonalGrass } from './props.js';
+import { grassTexture } from './textures.js';
+import { createEffects } from './effects.js';
+import { createAtmosphere } from './atmosphere.js';
+import { on } from './events.js';
 import { updatePower, updateRoadConnectivity, calcStats, tick } from './simulation.js';
 import { updateHUD, showAlert, initToolbar, initWelcome, initLevelComplete, registerGame,
          showBriefing, setActiveTool, setTaxCap, renderTimeControls, renderYearProgress,
@@ -27,7 +30,6 @@ renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = skyTexture();
 scene.fog = new THREE.Fog(0xcfe3f0, 35, 95);
 
 // Soft image-based lighting so metal/glass materials have something to reflect
@@ -38,7 +40,8 @@ const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 30
 camera.position.set(16, 18, 22);
 camera.lookAt(0, 0, 0);
 
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x56703f, 0.35));
+const hemi = new THREE.HemisphereLight(0xdcefff, 0x56703f, 0.35);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
 sun.position.set(14, 26, 10);
 sun.castShadow = true;
@@ -61,7 +64,7 @@ outerTex.repeat.set(70, 70);
 outerTex.needsUpdate = true;
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(240, 240),
-  new THREE.MeshStandardMaterial({ map: outerTex, color: 0xb9c9a0, roughness: 1 })
+  seasonalGrass(new THREE.MeshStandardMaterial({ map: outerTex, color: 0xb9c9a0, roughness: 1 }))
 );
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -0.01;
@@ -74,7 +77,7 @@ buildTex.repeat.set(GRID / 3, GRID / 3);
 buildTex.needsUpdate = true;
 const buildArea = new THREE.Mesh(
   new THREE.PlaneGeometry(GRID * CELL, GRID * CELL),
-  new THREE.MeshStandardMaterial({ map: buildTex, roughness: 1 })
+  seasonalGrass(new THREE.MeshStandardMaterial({ map: buildTex, roughness: 1 }))
 );
 buildArea.rotation.x = -Math.PI / 2;
 buildArea.receiveShadow = true;
@@ -119,6 +122,10 @@ scene.add(hoverMesh);
 const carGroup = new THREE.Group();
 scene.add(carGroup);
 
+// Sky, sun and seasons follow the game calendar; effects show sim events
+const atmosphere = createAtmosphere({ scene, renderer, sun, hemi });
+const effects = createEffects({ scene, camera, renderer });
+
 // ═══════════════════════════════════════════════
 //  COORDINATE HELPERS
 // ═══════════════════════════════════════════════
@@ -149,6 +156,7 @@ function clearCity() {
   for (const k in state.tiles) removeMesh(state.tiles[k].mesh);
   // Remove all cars
   state.cars.forEach(c => carGroup.remove(c.mesh));
+  effects.clear();
 }
 
 // ═══════════════════════════════════════════════
@@ -221,9 +229,12 @@ function placeTile(gx, gz, type, quiet = false) {
   mesh.position.copy(worldPos(gx, gz));
   scene.add(mesh);
 
+  effects.dust(mesh.position);
+
   setTile(gx, gz, {
     type,
     mesh,
+    stage: 0,
     powered:       false,
     roadConnected: false,
     population:    type === 'residential' ? Math.floor(def.pop * 0.25) : 0,
@@ -240,6 +251,7 @@ function placeTile(gx, gz, type, quiet = false) {
 function demolishTile(gx, gz) {
   const t = getTile(gx, gz);
   if (!t) return;
+  effects.dust(t.mesh.position);
   removeMesh(t.mesh);
   delete state.tiles[tileKey(gx, gz)];
   if (t.type === 'road') refreshRoadsAround(gx, gz);
@@ -249,6 +261,56 @@ function demolishTile(gx, gz) {
   playRemoval();
   refreshHover();
 }
+
+// ═══════════════════════════════════════════════
+//  SIMULATION EVENTS → VISUALS
+// ═══════════════════════════════════════════════
+const keyToCell = k => k.split(',').map(Number);
+const tileTop = t => new THREE.Box3().setFromObject(t.mesh.userData.body).max.y;
+
+/** Swap a home's model when its population crosses a density stage. */
+function restageHome(gx, gz, t, stage) {
+  removeMesh(t.mesh);
+  t.stage = stage;
+  t.mesh = buildTileMesh('residential', { facing: facingFor(gx, gz), seed: tileSeed(gx, gz), spawn: true, stage });
+  t.mesh.position.copy(worldPos(gx, gz));
+  t.mesh.userData.setPowered?.(t.powered);
+  scene.add(t.mesh);
+  effects.dust(t.mesh.position);
+}
+
+on('month', ({ net, movedIn }) => {
+  // Homes grow from houses into apartment blocks as they fill
+  for (const k in state.tiles) {
+    const t = state.tiles[k];
+    if (t.type !== 'residential') continue;
+    const stage = residentialStage(t.population, t.stage ?? 0);
+    if (stage !== (t.stage ?? 0)) restageHome(...keyToCell(k), t, stage);
+  }
+  // A few "+1" labels over homes that gained residents (sampled, to avoid clutter)
+  const sample = movedIn.length > 5 ? [...movedIn].sort(() => Math.random() - 0.5).slice(0, 5) : movedIn;
+  for (const [k, n] of sample) {
+    const t = state.tiles[k];
+    if (!t) continue;
+    effects.floatText(worldPos(...keyToCell(k)).setY(tileTop(t) + 0.25), `+${n} 👤`, 'info');
+  }
+  if (net !== 0) {
+    effects.hudFloat(document.getElementById('s-money'),
+      `${net > 0 ? '+' : '−'}$${Math.abs(net).toLocaleString()}`, net > 0 ? 'good' : 'bad');
+  }
+});
+
+on('fire', ({ key, damage, protection }) => {
+  const t = state.tiles[key];
+  if (!t) return;
+  const [gx, gz] = keyToCell(key);
+  const pos = worldPos(gx, gz);
+  const top = tileTop(t);
+  const truck = protection > 0 && dispatchFireTruck(gx, gz);
+  // A responding fire crew puts the flames out much sooner
+  effects.fire(pos, top, truck ? 1 : 2.5);
+  effects.floatText(pos.clone().setY(top + 0.4), `🔥 −$${damage.toLocaleString()}`, 'bad');
+});
 
 // ═══════════════════════════════════════════════
 //  TRAFFIC
@@ -295,6 +357,60 @@ function laneWaypoints(path) {
   });
 }
 
+const roadNeighbours = (gx, gz) => Object.values(NEIGHBOURS)
+  .map(([dx, dz]) => [gx + dx, gz + dz])
+  .filter(([x, z]) => getTile(x, z)?.type === 'road');
+
+/** Shortest road path from any start tile to a tile matching isGoal. */
+function roadRoute(starts, isGoal) {
+  const key = ([x, z]) => `${x},${z}`;
+  const prev = {};
+  const order = [];
+  for (const s of starts) { prev[key(s)] = null; order.push(s); }
+  for (let i = 0; i < order.length; i++) {
+    let node = order[i];
+    if (isGoal(node)) {
+      const path = [];
+      while (node) { path.unshift(node); node = prev[key(node)]; }
+      return path;
+    }
+    for (const n of roadNeighbours(node[0], node[1])) {
+      if (key(n) in prev) continue;
+      prev[key(n)] = node;
+      order.push(n);
+    }
+  }
+  return null;
+}
+
+/** Send a truck from the nearest working fire station to a burning tile.
+ *  Returns true if a crew can reach it. */
+function dispatchFireTruck(gx, gz) {
+  const r = ZONE_DEF.fire.serviceRadius;
+  const stations = Object.entries(state.tiles)
+    .filter(([, t]) => t.type === 'fire' && t.powered && t.roadConnected)
+    .map(([k]) => keyToCell(k))
+    .filter(([x, z]) => Math.abs(x - gx) <= r && Math.abs(z - gz) <= r)
+    .sort((a, b) => (Math.abs(a[0] - gx) + Math.abs(a[1] - gz)) - (Math.abs(b[0] - gx) + Math.abs(b[1] - gz)));
+  const goals = new Set(roadNeighbours(gx, gz).map(([x, z]) => `${x},${z}`));
+  if (!goals.size) return stations.length > 0;
+  for (const [sx, sz] of stations) {
+    const path = roadRoute(roadNeighbours(sx, sz), n => goals.has(`${n[0]},${n[1]}`));
+    if (!path) continue;
+    if (path.length >= 2) {
+      const waypoints = laneWaypoints(path);
+      const mesh = vehicle('firetruck', 0xc62828);
+      mesh.scale.setScalar(0.85);
+      mesh.position.copy(waypoints[0]);
+      mesh.rotation.y = Math.atan2(waypoints[1].x - waypoints[0].x, waypoints[1].z - waypoints[0].z);
+      carGroup.add(mesh);
+      state.cars.push({ mesh, waypoints, idx: 1, speed: 2.2, hold: 5 });
+    }
+    return true;
+  }
+  return false;
+}
+
 function spawnCar() {
   const roads = Object.entries(state.tiles)
     .filter(([, t]) => t.type === 'road')
@@ -318,6 +434,11 @@ function spawnCar() {
 function updateCars(dt) {
   for (let i = state.cars.length - 1; i >= 0; i--) {
     const car = state.cars[i];
+    if (car.parked) { // emergency vehicle waiting at the scene
+      car.hold -= dt;
+      if (car.hold <= 0) { carGroup.remove(car.mesh); state.cars.splice(i, 1); }
+      continue;
+    }
     const target = car.waypoints[car.idx];
     // Road removed under the car → retire it
     const cell = gridFromWorld(car.mesh.position.x, car.mesh.position.z);
@@ -328,11 +449,12 @@ function updateCars(dt) {
     }
     const dir = new THREE.Vector3().subVectors(target, car.mesh.position);
     dir.y = 0;
-    const step = CAR_SPEED * dt;
+    const step = CAR_SPEED * (car.speed ?? 1) * dt;
     if (dir.length() <= step) {
       car.mesh.position.copy(target);
       car.idx++;
       if (car.idx >= car.waypoints.length) {
+        if (car.hold > 0) { car.parked = true; continue; }
         carGroup.remove(car.mesh);
         state.cars.splice(i, 1);
       }
@@ -584,18 +706,24 @@ function animate() {
   const t  = clock.elapsedTime;
   controls.update();
   updateCars(dt);
-  // Simulation clock: one tick per in-game year, frozen while paused or a
+  // Simulation clock: one tick per in-game month, frozen while paused or a
   // full-screen overlay (briefing, level complete…) is open.
+  const monthLen = MONTH_MS / 1000;
+  let simMonths = 0; // game time advanced this frame
   if (state.running && !state.paused && !modalOpen()) {
-    state.yearClock += Math.min(rawDt, 0.5) * state.speed; // keep years on time at low FPS
-    const yearLen = TICK_MS / 1000;
-    if (state.yearClock >= yearLen) {
-      state.yearClock -= yearLen;
+    const step = Math.min(rawDt, 0.5) * state.speed; // keep months on time at low FPS
+    state.yearClock += step;
+    simMonths = step / monthLen;
+    if (state.yearClock >= monthLen) {
+      state.yearClock -= monthLen;
       tick();
     }
     renderYearProgress();
   }
   renderTimeControls();
+  atmosphere.update(state.monthsPlayed, Math.min(1, state.yearClock / monthLen), state.month);
+  effects.setLabelsVisible(!modalOpen());
+  effects.update(dt, simMonths, t);
   for (const k in state.tiles) {
     const m = state.tiles[k].mesh;
     if (m) animateTile(m, t);

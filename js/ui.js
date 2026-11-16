@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { calcStats, yearlyIncome, yearlyUpkeep } from './simulation.js';
-import { TOOLTIP_DATA, ZONE_DEF, TICK_MS } from './constants.js';
+import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, DAYS_PER_MONTH } from './constants.js';
 import { LEVELS, getLevel, ERAS } from './levels.js';
 import { objectives, advise } from './advisor.js';
 
@@ -38,7 +38,7 @@ export function updateHUD(s) {
   $('s-money').textContent    = state.money.toLocaleString();
   $('s-power').textContent    = s.powerUsed;
   $('s-pmax').textContent     = s.powerMax;
-  $('s-year').textContent     = state.year;
+  renderDate();
   $('s-happy').textContent    = Math.round(s.happiness);
   $('s-level').textContent    = state.currentLevel;
 
@@ -300,7 +300,7 @@ export function showLevelComplete(levelId, s) {
   const isLast = levelId >= LEVELS.length;
   $('lc-title').textContent = isLast ? '🏆 Utopia Achieved!' : `🎉 Level ${levelId} Complete!`;
   $('lc-stats').innerHTML = [
-    ['Years', state.year - 1],
+    ['Time played', `${Math.floor(state.monthsPlayed / 12)}y ${state.monthsPlayed % 12}m`],
     ['Population', s.pop.toLocaleString()],
     ['Happiness', `${Math.round(s.happiness)}%`],
     ['Cash', `$${state.money.toLocaleString()}`],
@@ -390,8 +390,18 @@ export function renderTimeControls() {
   $('paused-tag').style.display = state.paused && state.running && !modalOpen() ? 'block' : 'none';
 }
 
+/** Calendar label, e.g. "Mar 12 · Yr 2". The day advances within the month. */
+export function renderDate() {
+  const frac = Math.min(0.999, state.yearClock / (MONTH_MS / 1000));
+  const day  = Math.floor(frac * DAYS_PER_MONTH) + 1;
+  const txt  = `${MONTH_NAMES[state.month]} ${day} · Yr ${state.year}`;
+  const el = $('s-year');
+  if (el.textContent !== txt) el.textContent = txt;
+}
+
 export function renderYearProgress() {
-  $('year-fill').style.width = `${Math.min(100, (state.yearClock / (TICK_MS / 1000)) * 100)}%`;
+  $('year-fill').style.width = `${Math.min(100, (state.yearClock / (MONTH_MS / 1000)) * 100)}%`;
+  renderDate();
 }
 
 export function setTaxCap(cap) {
