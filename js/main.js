@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-import { GRID, CELL, ZONE_DEF, MONTH_MS } from './constants.js';
-import { state, getTile, setTile, tileKey, resetState } from './state.js';
+import { GRID, CELL, ZONE_DEF, MONTH_MS, LAND_STEP } from './constants.js';
+import { state, getTile, setTile, tileKey, resetState, inLand, nextLandCost } from './state.js';
 import { buildTileMesh, animateTile, buildScenery, disposeTile, residentialStage } from './meshes.js';
 import { vehicle, randomTrafficKind, seasonalGrass, M, G, add } from './props.js';
 import { createWeather } from './weather.js';
@@ -37,9 +37,14 @@ scene.fog = new THREE.Fog(0xcfe3f0, 35, 95);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 300);
-camera.position.set(16, 18, 22);
-camera.lookAt(0, 0, 0);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 300);
+const CAM_DIR = new THREE.Vector3(16, 17, 22).normalize();
+/** Park the camera so the owned plot fills the view. */
+function frameLand(land) {
+  camera.position.copy(CAM_DIR).multiplyScalar(8 + land * CELL * 0.78);
+  camera.lookAt(0, 0, 0);
+}
+frameLand(GRID);
 
 const hemi = new THREE.HemisphereLight(0xdcefff, 0x56703f, 0.35);
 scene.add(hemi);
@@ -83,25 +88,46 @@ const buildArea = new THREE.Mesh(
 buildArea.rotation.x = -Math.PI / 2;
 buildArea.receiveShadow = true;
 scene.add(buildArea);
-{
-  const half = GRID * CELL / 2, t = 0.25;
-  const stone = new THREE.MeshStandardMaterial({ color: 0xa8a294, roughness: 0.9 });
-  for (const [w, d, x, z] of [[GRID * CELL + t * 2, t, 0, half + t / 2], [GRID * CELL + t * 2, t, 0, -half - t / 2],
-                              [t, GRID * CELL, half + t / 2, 0], [t, GRID * CELL, -half - t / 2, 0]]) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), stone);
-    b.position.set(x, 0.03, z);
-    b.receiveShadow = true;
-    scene.add(b);
-  }
-}
 scene.add(buildScenery(GRID * CELL / 2));
 
-const gridHelper = new THREE.GridHelper(GRID * CELL, GRID, 0xffffff, 0xffffff);
-gridHelper.material.transparent = true;
-gridHelper.material.opacity = 0.12;
-gridHelper.material.depthWrite = false;
-gridHelper.position.y = 0.005;
-scene.add(gridHelper);
+// ── Owned land ──
+// The plot the city owns: brighter grass inside a stone border, with the grid
+// drawn over it. A dashed outline shows the next ring that can be bought.
+const landGroup = new THREE.Group();
+scene.add(landGroup);
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0xa8a294, roughness: 0.9 });
+const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false });
+const saleMat = new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, dashSize: 0.35, gapSize: 0.25, depthWrite: false });
+
+function applyLand() {
+  for (const o of [...landGroup.children]) { landGroup.remove(o); o.geometry.dispose(); }
+  const size = state.land * CELL, half = size / 2, t = 0.25;
+  buildArea.scale.setScalar(state.land / GRID);
+  for (const [w, d, x, z] of [[size + t * 2, t, 0, half + t / 2], [size + t * 2, t, 0, -half - t / 2],
+                              [t, size, half + t / 2, 0], [t, size, -half - t / 2, 0]]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), stoneMat);
+    b.position.set(x, 0.03, z);
+    b.receiveShadow = true;
+    landGroup.add(b);
+  }
+  const pts = [];
+  for (let i = 0; i <= state.land; i++) {
+    const o = -half + i * CELL;
+    pts.push(o, 0.005, -half, o, 0.005, half, -half, 0.005, o, half, 0.005, o);
+  }
+  const lines = new THREE.BufferGeometry();
+  lines.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  landGroup.add(new THREE.LineSegments(lines, gridMat));
+  if (state.land < GRID) {
+    const h = half + LAND_STEP / 2 * CELL;
+    const ring = new THREE.BufferGeometry().setFromPoints(
+      [[-h, -h], [h, -h], [h, h], [-h, h], [-h, -h]].map(([x, z]) => new THREE.Vector3(x, 0.02, z)));
+    const outline = new THREE.Line(ring, saleMat);
+    outline.computeLineDistances();
+    landGroup.add(outline);
+  }
+}
+applyLand();
 
 const hitPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(GRID * CELL, GRID * CELL),
@@ -611,7 +637,8 @@ function getHitCell(event) {
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObject(hitPlane);
   if (!hits.length) return null;
-  return gridFromWorld(hits[0].point.x, hits[0].point.z);
+  const cell = gridFromWorld(hits[0].point.x, hits[0].point.z);
+  return cell && inLand(cell.x, cell.z) ? cell : null; // only owned land can be built on
 }
 
 // ── Hover feedback: coverage preview + "what happens if I click" label ──
@@ -772,6 +799,9 @@ function startLevel(id) {
   clearCity();
   state.currentLevel = id;
   resetState(getLevel(id));
+  applyLand();
+  frameLand(state.land);
+  controls.target.set(0, 0, 0);
   progress.unlock(id);
   setTaxCap(getLevel(id).constraints.taxCapPct);
   selectTool('power'); // every city starts with a power plant
@@ -790,6 +820,23 @@ function beginLevel() {
   updateHUD(calcStats());
 }
 
+/** Buy the next ring of land around the plot. */
+function buyLand() {
+  const cost = nextLandCost(getLevel(state.currentLevel).constraints.costMult);
+  if (cost === null) return;
+  if (state.money < cost) {
+    showAlert(`💸 Need $${cost.toLocaleString()} to buy more land`, 'warn');
+    return;
+  }
+  state.money -= cost;
+  state.land += LAND_STEP;
+  applyLand();
+  playPlacement();
+  showAlert(`🗺 Land expanded to ${state.land}×${state.land}`, 'ok');
+  updateHUD(calcStats());
+  refreshHover();
+}
+
 /** speed 0 pauses; 1–3 set the game speed. */
 function setSpeed(speed) {
   if (speed === 0) state.paused = true;
@@ -803,7 +850,7 @@ window.addEventListener('keydown', e => {
   setSpeed(state.paused ? state.speed : 0);
 });
 
-registerGame({ startLevel, beginLevel, setSpeed, setOverlay });
+registerGame({ startLevel, beginLevel, setSpeed, setOverlay, buyLand });
 
 // ═══════════════════════════════════════════════
 //  RENDER LOOP
@@ -826,6 +873,7 @@ function animate() {
   let simMonths = 0; // game time advanced this frame
   if (state.running && !state.paused && !modalOpen()) {
     const step = Math.min(rawDt, 0.5) * state.speed; // keep months on time at low FPS
+    state.dayClock += Math.min(rawDt, 0.5);          // the sun keeps its own pace at any speed
     state.yearClock += step;
     simMonths = step / monthLen;
     if (state.yearClock >= monthLen) {
@@ -835,7 +883,7 @@ function animate() {
     renderYearProgress();
   }
   renderTimeControls();
-  atmosphere.update(state.monthsPlayed, Math.min(1, state.yearClock / monthLen), state.month, weather.overcast);
+  atmosphere.update(state.dayClock, Math.min(1, state.yearClock / monthLen), state.month, weather.overcast);
   effects.setLabelsVisible(!modalOpen());
   effects.update(dt, simMonths, t);
   for (const k in state.tiles) {

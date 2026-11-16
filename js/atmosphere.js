@@ -1,20 +1,18 @@
 /**
  * atmosphere.js — day/night cycle and seasons, driven by the game calendar.
  *
- *  Day/night: one full cycle every DAY_MONTHS in-game months (about a third
- *  of it is night). It is deliberately slower than a month so the sky doesn't
- *  strobe at 3× speed, and not a whole year so night falls in every season.
+ *  Day/night: one full cycle every DAY_SECONDS of play (about a third
+ *  of it is night). It runs on real play time, not the calendar, so a day
+ *  lasts five minutes at every game speed.
  *
  *  `overcast` (0–1, from weather.js) dims the sun and greys the sky.
  *
  *  Seasons: Dec–Feb snow, Mar–May fresh growth, Sep–Nov autumn leaves.
  */
 import * as THREE from 'three';
-import { DAY_MONTHS, MONTHS_PER_YEAR } from './constants.js';
+import { DAY_FRAC, dayPhase, MONTHS_PER_YEAR } from './constants.js';
 import { setNight, setSeason } from './props.js';
 
-const DAY_FRAC = 0.68;          // share of the cycle the sun is up
-const START_PHASE = 0.16;       // new cities start mid-morning
 
 // Sky gradient stops [top, middle, horizon]
 const SKY = {
@@ -60,12 +58,12 @@ export function createAtmosphere({ scene, renderer, sun, hemi }) {
   }
 
   /**
-   * monthsPlayed: whole months since the level began; frac: 0–1 progress
+   * dayClock: seconds of play since the level began; frac: 0–1 progress
    * through the current month; month: calendar month 0–11.
    */
-  function update(monthsPlayed, frac, month, overcast = 0) {
+  function update(dayClock, frac, month, overcast = 0) {
     // ── Day / night ────────────────────────────────────────────────────
-    const p = ((monthsPlayed + frac) / DAY_MONTHS + START_PHASE) % 1;
+    const p = dayPhase(dayClock);
     const isDay = p < DAY_FRAC;
     const u = isDay ? p / DAY_FRAC : (p - DAY_FRAC) / (1 - DAY_FRAC);
     const elev = Math.sin(Math.PI * u);                 // 0 at horizon, 1 at zenith

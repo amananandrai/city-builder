@@ -6,6 +6,14 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 
 **▶ Play it live:** https://city-builder-omega.vercel.app/
 
+![A level 12 city with the objectives panel, advisor and HUD](docs/screenshots/city-day.jpg)
+
+| Downtown | Suburbs |
+| --- | --- |
+| ![Office towers, shops and services downtown](docs/screenshots/downtown.jpg) | ![Apartment blocks, schools and playgrounds](docs/screenshots/suburbs.jpg) |
+| **Night** | **Winter** |
+| ![The city lit up at night](docs/screenshots/night.jpg) | ![The same city under snow](docs/screenshots/winter.jpg) |
+
 ---
 
 ## Features
@@ -15,7 +23,9 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 - **Power and roads:** buildings run at full output only when they're powered *and* touch a road (100% with both, 75% power only, 50% road only, 25% neither).
 - **Zones and services:** Residential, Commercial, Industrial, Power Plant, School, Park, Government Office, Police Station and Fire Station. Each service covers a radius, which is highlighted while you place it.
 - **Advisor and objectives:** a live panel shows goal progress and the single most useful next step.
-- **Living world:** a day/night cycle, seasons, rain and snow, cars and pedestrians, and placement and ambience sounds.
+- **Land that grows with you:** early levels start on a small 8×8 plot and later levels start bigger, up to the full 24×24 valley. Use the **🗺 Land** button to buy the next ring of land whenever you need more room.
+- **Living world:** a five-minute day/night cycle with a clock in the HUD, seasons, rain and snow, cars and pedestrians, and placement and ambience sounds.
+- **Detailed buildings:** cottages, townhouses, ranches and villas that grow into walk-ups and apartment blocks; shops, mid-rises and two kinds of office tower; factories, warehouses and refineries; five park layouts; and furnished streets with signals, lamps, trees and bus shelters.
 - **Cosmetic building styles:** houses or apartments, shops, mid-rise or office towers, factories, warehouses or refineries.
 - **Saved progress:** unlocked levels are stored in your browser's `localStorage`.
 
@@ -26,6 +36,7 @@ New players get a short step-by-step guide, a briefing before each level, an obj
 3. **Zone.** Residential holds up to 15 residents, Commercial gives 20 jobs and Industrial gives 35. Keep jobs close to population.
 4. **Add services.** Schools speed up growth, parks raise happiness and capacity, police cut crime, and fire stations prevent costly fires.
 5. **Manage time and money.** Set the tax rate in the toolbar, and use ⏸ / ▶ / ⏩ (or **Space** to pause) to control speed.
+6. **Buy land when you run out.** The dashed outline shows the next ring; the Land button shows its price.
 
 Meet every goal in the Objectives panel at the same time to complete a level.
 
@@ -33,7 +44,7 @@ Meet every goal in the Objectives panel at the same time to complete a level.
 
 - [Three.js](https://threejs.org/) r160, loaded from a CDN via an import map, with no build step
 - Plain JavaScript ES modules, HTML and CSS
-- Buildings are mostly modelled procedurally in code. Extra residential variants, roads and scenery use [Kenney](https://kenney.nl/) CC0 GLB models.
+- Buildings, roads, trees, vehicles and scenery are modelled procedurally in code, with textures drawn on canvases at start-up.
 - Deployed on [Vercel](https://vercel.com/) as a static site
 
 ## Run locally
@@ -56,13 +67,19 @@ style.css
 js/
   main.js           scene setup, input, render loop
   simulation.js     economy, growth, happiness, crime and fire logic
-  levels.js         the 50 levels and their goals and constraints
-  constants.js      grid size, zone definitions, economy tuning
+  levels.js         the 50 levels, their goals, constraints and starting land
+  constants.js      grid size, zone definitions, economy, day length, land price
   advisor.js        objectives and "next step" guidance
-  meshes.js, props.js, textures.js, assets.js   building and scenery models
+  buildings.js      every building model (homes, commerce, industry, services, parks)
+  buildkit.js       shared parts: lots, roofs, balconies, smoke, flags
+  props.js          trees, vehicles, street furniture, materials, mesh baking
+  textures.js       procedural facade, ground and sign textures
+  meshes.js         road auto-tiling, tile wrapper and badges, surrounding scenery
+  assets.js         model and sound loading
   atmosphere.js, weather.js, effects.js         day/night, seasons, rain/snow, FX
   ui.js, state.js, events.js
 assets/models, assets/sounds
+docs/screenshots
 tools/balance-bot.mjs   headless bot that plays every level to check difficulty
 ```
 

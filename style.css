@@ -47,6 +47,15 @@ canvas { display:block; }
   /* One neutral button style; the coloured underline is the building's roof colour */
   box-shadow:inset 0 -3px 0 var(--c); transition:background .15s, border-color .15s, transform .15s;
 }
+#land-btn {
+  display:flex; align-items:center; gap:5px; padding:6px 10px 8px; border-radius:7px; cursor:pointer;
+  font-size:0.78rem; font-weight:500; white-space:nowrap; color:var(--text-2);
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09);
+  box-shadow:inset 0 -3px 0 #c9a646; transition:background .15s, transform .15s;
+}
+#land-btn:hover:not(:disabled) { background:rgba(255,255,255,0.09); color:#fff; transform:translateY(-1px); }
+#land-btn:disabled { opacity:0.55; cursor:default; }
+#land-btn.poor { color:#e59a8f; }
 .tool-btn:hover { background:rgba(255,255,255,0.09); color:#fff; transform:translateY(-1px); }
 .tool-btn:active { transform:translateY(0); }
 .tool-btn.active { background:color-mix(in srgb, var(--c) 34%, transparent); border-color:var(--c); color:#fff; }
