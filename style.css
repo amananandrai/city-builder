@@ -383,7 +383,7 @@ canvas { display:block; }
   position:fixed; top:66px; left:14px; width:272px; z-index:10;
   display:none; flex-direction:column; gap:10px;
 }
-#objectives, #advisor {
+#objectives, #advisor, #history {
   background:var(--panel); border:1px solid rgba(255,255,255,0.09);
   border-radius:12px; padding:11px 14px; backdrop-filter:blur(6px);
 }
@@ -511,3 +511,30 @@ canvas { display:block; }
 #happy-tip .ht-row b.ok { color:#2ecc71; } #happy-tip .ht-row b.bad { color:#ff7b6b; }
 #happy-tip .ht-row.total { border-top:1px solid var(--border); margin-top:5px; padding-top:6px; color:var(--text); }
 #confetti { position:fixed; inset:0; z-index:400; pointer-events:none; }
+
+/* ══════════════════════════════════════
+   HISTORY CHART, COVERAGE VIEWS
+══════════════════════════════════════ */
+#hist-canvas { width:100%; height:55px; display:block; }
+.hist-legend { color:var(--text-3); font-weight:500; text-transform:none; letter-spacing:0; font-size:0.68rem; }
+.hist-legend i { display:inline-block; width:8px; height:3px; border-radius:2px; margin:0 3px 2px 6px; }
+.hist-legend i.pop { background:#7dd3fc; } .hist-legend i.cash { background:#2ecc71; }
+#overlay-bar {
+  position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:10;
+  display:flex; flex-direction:column; align-items:center; gap:5px; padding:8px 6px;
+  background:var(--panel); border:1px solid var(--border); border-radius:12px; backdrop-filter:blur(8px);
+}
+#overlay-bar .ov-title { color:var(--text-3); font-size:0.62rem; text-transform:uppercase; letter-spacing:.07em; }
+#overlay-bar button {
+  width:32px; height:30px; border-radius:8px; cursor:pointer; font-size:0.9rem;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:var(--text-2);
+}
+#overlay-bar button:hover { background:rgba(255,255,255,0.12); }
+#overlay-bar button.active { background:rgba(46,204,113,0.25); border-color:#2ecc71; }
+#overlay-legend {
+  display:none; position:absolute; right:52px; top:50%; transform:translateY(-50%); white-space:nowrap;
+  background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:6px 10px;
+  font-size:0.7rem; color:var(--text-2); line-height:1.7;
+}
+#overlay-legend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; }
+#overlay-legend i.ok { background:#2ecc71; } #overlay-legend i.bad { background:#ff3b30; }

@@ -817,22 +817,70 @@ export function animateTile(group, t) {
 }
 
 /** Decorative scenery for the land surrounding the buildable grid. */
+/** Centre line of the river that runs past the far (north) side of the grid. */
+const riverZ = (x, gridHalf) => -(gridHalf + 7.5) + Math.sin(x * 0.17) * 2.2 + Math.sin(x * 0.06 + 1) * 1.6;
+
+/** Flat ribbon following the river, `width` wide, at height y. */
+function riverRibbon(gridHalf, width, y) {
+  const pts = [];
+  for (let x = -70; x <= 70; x += 1) {
+    const z = riverZ(x, gridHalf);
+    const dz = riverZ(x + 0.5, gridHalf) - riverZ(x - 0.5, gridHalf);
+    const len = Math.hypot(1, dz), nx = -dz / len, nz = 1 / len; // normal to the flow
+    pts.push([x + nx * width / 2, z + nz * width / 2], [x - nx * width / 2, z - nz * width / 2]);
+  }
+  const pos = [], idx = [];
+  pts.forEach(([x, z]) => pos.push(x, y, z));
+  for (let i = 0; i < pts.length - 2; i += 2) idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function buildScenery(gridHalf) {
   const g = new THREE.Group();
   const r = rng(1337);
   const placed = [];
+
+  // River with sandy banks
+  const bank = new THREE.Mesh(riverRibbon(gridHalf, 4, 0.004), M(0xd9cba0, { r: 1 }));
+  const water = new THREE.Mesh(riverRibbon(gridHalf, 2.8, 0.012), MAT.water());
+  bank.receiveShadow = water.receiveShadow = true;
+  bank.userData.noBake = water.userData.noBake = true;
+  bank.userData.ownsGeometry = water.userData.ownsGeometry = true;
+  g.add(bank, water);
+
+  // Rolling hills, then distant mountains that fade into the haze
+  const hillMat = snowy(M(0x6f9a52, { flat: true, r: 1 }));
+  for (let i = 0; i < 16; i++) {
+    const a = r() * Math.PI * 2, d = 32 + r() * 24, rad = 5 + r() * 6, h = 1.5 + r() * 3;
+    add(g, G.ico(1, 1), hillMat, Math.cos(a) * d, -0.2, Math.sin(a) * d, { s: [rad, h, rad * (0.7 + r() * 0.6)], ry: r() * 3, shadow: false });
+  }
+  const rock = M(0x7d8fa3, { flat: true, r: 1 }), cap = M(0xf2f5f8, { flat: true, r: 0.9 });
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + r() * 0.3, d = 68 + r() * 14, rad = 10 + r() * 7, h = 9 + r() * 9;
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    add(g, G.cone(1, 1, 7), rock, x, h / 2 - 0.1, z, { s: [rad, h, rad], ry: r() * 3, shadow: false });
+    add(g, G.cone(1, 1, 7), cap, x, h * 0.86, z, { s: [rad * 0.3, h * 0.3, rad * 0.3], ry: r() * 3, shadow: false });
+  }
+
   for (let i = 0; i < 260; i++) {
     const a = r() * Math.PI * 2;
     const d = gridHalf + 0.8 + r() * 16;
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (Math.abs(x) < gridHalf + 0.6 && Math.abs(z) < gridHalf + 0.6) continue;
     if (placed.some(([px, pz]) => (px - x) ** 2 + (pz - z) ** 2 < 0.5)) continue;
+    if (Math.abs(z - riverZ(x, gridHalf)) < 2.4) continue; // keep the river clear
     placed.push([x, z]);
     tree(g, x, z, 1.3 + r() * 1.2, pick(['round', 'pine', 'pine', 'tall', 'round', 'autumn'], r), r);
   }
   for (let i = 0; i < 18; i++) {
     const a = r() * Math.PI * 2, d = gridHalf + 4 + r() * 12;
-    add(g, G.ico(0.25 + r() * 0.35, 0), M(0x8d8d86, { flat: true, r: 1 }), Math.cos(a) * d, 0.08, Math.sin(a) * d, { s: [1, 0.55, 1.2], ry: r() * 3 });
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (Math.abs(z - riverZ(x, gridHalf)) < 2) continue;
+    add(g, G.ico(0.25 + r() * 0.35, 0), M(0x8d8d86, { flat: true, r: 1 }), x, 0.08, z, { s: [1, 0.55, 1.2], ry: r() * 3 });
   }
   return bake(g);
 }
