@@ -30,6 +30,52 @@ export function M(color, opts = {}) {
   });
 }
 
+// ── Night glow ─────────────────────────────────────────────────────────────
+// Materials whose emissive strength follows the day/night cycle.
+const glowMats = [];
+let nightK = 0;
+export function nightGlow(mat, day, night) {
+  if (!mat.userData.nightGlow) {
+    mat.userData.nightGlow = true;
+    glowMats.push({ mat, day, night });
+    mat.emissiveIntensity = day + (night - day) * nightK;
+  }
+  return mat;
+}
+/** k: 0 = full day, 1 = deep night. */
+export function setNight(k) {
+  if (Math.abs(k - nightK) < 0.004) return;
+  nightK = k;
+  for (const { mat, day, night } of glowMats) mat.emissiveIntensity = day + (night - day) * k;
+}
+
+// ── Snow & seasons ─────────────────────────────────────────────────────────
+const SNOW = { value: 0 };
+/** Make a material blend toward snow-white in winter (shared uniform). */
+export function snowy(mat, amount = 1) {
+  if (mat.userData.snowy) return mat;
+  mat.userData.snowy = true;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uSnow = SNOW;
+    sh.fragmentShader = 'uniform float uSnow;\n' + sh.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.84, 0.88, 0.94), uSnow * ${amount.toFixed(2)});`
+    );
+  };
+  mat.customProgramCacheKey = () => 'snow' + amount;
+  return mat;
+}
+const grassMats = [];
+/** Grass that yellows in autumn and is snow-covered in winter. */
+export function seasonalGrass(mat) {
+  if (!mat.userData.seasonal) {
+    mat.userData.seasonal = true;
+    snowy(mat);
+    grassMats.push({ mat, base: mat.color.clone() });
+  }
+  return mat;
+}
+
 // Common palette materials
 export const MAT = {
   glass:    () => M(0x6f9ec4, { r: 0.1, m: 0.6 }),
@@ -41,7 +87,7 @@ export const MAT = {
   wood:     () => M(0x8a5a35, { r: 0.9 }),
   trunk:    () => M(0x6b4528, { r: 0.95 }),
   rubber:   () => M(0x1e1e1e, { r: 0.9 }),
-  roof:     () => M(0xffffff, { r: 1, map: gravelRoofTexture() }),
+  roof:     () => snowy(M(0xffffff, { r: 1, map: gravelRoofTexture() }), 0.85),
   water:    () => M(0x3b8fc4, { r: 0.05, m: 0.3 }),
 };
 
@@ -110,6 +156,7 @@ export function boxAt(parent, w, h, d, mat, x, y0, z, o) {
  * roof on top. Window bays are `bay` wide and floors are `floor` tall, so the
  * texture lines up regardless of the block's size.
  */
+const facadeMats = {};
 export function facadeBlock(parent, w, h, d, x, y0, z, { style, wall, bay = 0.22, floor = 0.26, roofMat } = {}) {
   const geo = new THREE.BoxGeometry(w, h, d);
   const uv = geo.attributes.uv;
@@ -124,7 +171,13 @@ export function facadeBlock(parent, w, h, d, x, y0, z, { style, wall, bay = 0.22
       uv.setXY(idx, uv.getX(idx) * su, uv.getY(idx) * sv);
     }
   }
-  const side = M(0xffffff, { r: style === 'glass' || style === 'office' ? 0.35 : 0.85, m: style === 'glass' ? 0.3 : 0, map: facadeTexture(style, wall) });
+  const tex = facadeTexture(style, wall);
+  const side = facadeMats[tex.uuid] ??= nightGlow(new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: style === 'glass' || style === 'office' ? 0.35 : 0.85,
+    metalness: style === 'glass' ? 0.3 : 0,
+    emissive: 0xffffff, emissiveMap: tex.userData.glow,
+  }), 0, 1.7);
   const top = roofMat ?? MAT.roof();
   const mesh = new THREE.Mesh(geo, [side, side, top, top, side, side]);
   mesh.position.set(x, y0 + h / 2, z);
@@ -138,10 +191,13 @@ export function facadeBlock(parent, w, h, d, x, y0, z, { style, wall, bay = 0.22
 /** Flat textured plane facing +z, rotated by ry (signs, doors). */
 const panelMats = {};
 export function texturedPanel(parent, w, h, tex, x, y, z, ry = 0, glow = 0) {
-  const mat = panelMats[tex.uuid + glow] ??= new THREE.MeshStandardMaterial({
-    map: tex, roughness: 0.6,
-    emissive: glow ? 0xffffff : 0x000000, emissiveMap: glow ? tex : null, emissiveIntensity: glow,
-  });
+  const mat = panelMats[tex.uuid + glow] ??= (() => {
+    const m = new THREE.MeshStandardMaterial({
+      map: tex, roughness: 0.6,
+      emissive: glow ? 0xffffff : 0x000000, emissiveMap: glow ? tex : null, emissiveIntensity: glow,
+    });
+    return glow ? nightGlow(m, glow, glow * 2.5 + 0.4) : m;
+  })();
   return add(parent, G.plane(w, h), mat, x, y, z, { ry, shadow: false });
 }
 
@@ -159,6 +215,29 @@ export const pick = (arr, r = Math.random) => arr[Math.floor(r() * arr.length)];
 const LEAF = [0x4f8f3a, 0x5fa043, 0x3f7d36, 0x6aa84f, 0x7fb24a];
 const PINE = [0x2f6b3b, 0x3a7a45, 0x285e35];
 const AUTUMN = [0xd98c2b, 0xc4572a, 0xe0b23a];
+const SPRING = [0x7fc24a, 0x9bd45a, 0xf2a7c3, 0x8fd060, 0xa6d85a];
+const leafMat = c => M(c, { flat: true, r: 0.9 });
+
+const _c = new THREE.Color(), _t = new THREE.Color();
+const FROST = 0xe6ecf2, DRY = 0xdccf95;
+/**
+ * Seasonal look. Each value is 0–1:
+ *   snow – winter cover, autumn – leaves turn, spring – fresh growth/blossom
+ */
+export function setSeason({ snow, autumn, spring }) {
+  SNOW.value = snow * 0.92;
+  LEAF.forEach((c, i) => {
+    _c.setHex(c)
+      .lerp(_t.setHex(SPRING[i]), spring * 0.45)
+      .lerp(_t.setHex(AUTUMN[i % AUTUMN.length]), autumn * 0.9)
+      .lerp(_t.setHex(FROST), snow * 0.8);
+    leafMat(c).color.copy(_c);
+  });
+  for (const c of PINE)   leafMat(c).color.setHex(c).lerp(_t.setHex(FROST), snow * 0.45);
+  for (const c of AUTUMN) leafMat(c).color.setHex(c).lerp(_t.setHex(FROST), snow * 0.8);
+  _t.setHex(0xffffff).lerp(_c.setHex(DRY), autumn * 0.6);
+  for (const { mat, base } of grassMats) mat.color.copy(base).multiply(_t);
+}
 
 /** A stylised tree. kind: 'round' | 'pine' | 'tall' | 'autumn' */
 export function tree(parent, x, z, s = 1, kind = 'round', r = Math.random) {
@@ -199,7 +278,7 @@ export function streetLamp(parent, x, z, ry = 0) {
   g.position.set(x, 0, z); g.rotation.y = ry;
   add(g, G.cyl(0.012, 0.016, 0.42, 6), MAT.darkMetal(), 0, 0.21, 0);
   add(g, G.box(0.012, 0.012, 0.1), MAT.darkMetal(), 0, 0.42, 0.045);
-  add(g, G.box(0.04, 0.02, 0.06), M(0xfff3c4, { e: 0xffe9a0, ei: 0.8 }), 0, 0.41, 0.09, { shadow: false });
+  add(g, G.box(0.04, 0.02, 0.06), nightGlow(M(0xfff3c4, { e: 0xffe9a0, ei: 0.8 }), 0.3, 3.5), 0, 0.41, 0.09, { shadow: false });
   parent.add(g);
   return g;
 }
@@ -278,8 +357,8 @@ export function vehicle(kind = 'sedan', color = null, r = Math.random) {
     add(g, wheelGeo, MAT.rubber(), sx, wheelR, az, { rz: Math.PI / 2 });
   }
   // Lights
-  const head = M(0xfffbe6, { e: 0xfff2c0, ei: 0.8 });
-  const tail = M(0xff3b30, { e: 0xff1a0a, ei: 0.6 });
+  const head = nightGlow(M(0xfffbe6, { e: 0xfff2c0, ei: 0.8 }), 0.6, 3.5);
+  const tail = nightGlow(M(0xff3b30, { e: 0xff1a0a, ei: 0.6 }), 0.5, 2.5);
   for (const sx of [-W * 0.33, W * 0.33]) {
     add(g, G.box(0.035, 0.02, 0.006), head, sx, wheelR * 0.8 + bodyH * 0.6, L / 2 + 0.002, { shadow: false });
     add(g, G.box(0.035, 0.018, 0.006), tail, sx, wheelR * 0.8 + bodyH * 0.6, -L / 2 - 0.002, { shadow: false });

@@ -300,7 +300,7 @@ export function showLevelComplete(levelId, s) {
   const isLast = levelId >= LEVELS.length;
   $('lc-title').textContent = isLast ? '🏆 Utopia Achieved!' : `🎉 Level ${levelId} Complete!`;
   $('lc-stats').innerHTML = [
-    ['Time played', `${state.year - 1}y ${state.month}m`],
+    ['Time played', `${Math.floor(state.monthsPlayed / 12)}y ${state.monthsPlayed % 12}m`],
     ['Population', s.pop.toLocaleString()],
     ['Happiness', `${Math.round(s.happiness)}%`],
     ['Cash', `$${state.money.toLocaleString()}`],

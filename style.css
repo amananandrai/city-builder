@@ -467,3 +467,19 @@ canvas { display:block; }
 }
 #cursor-info b { color:#fff; }
 #cursor-info .ok { color:#2ecc71; } #cursor-info .bad { color:#ff7b6b; } #cursor-info .dim { color:#888; }
+
+/* ══════════════════════════════════════
+   FLOATING NUMBERS
+══════════════════════════════════════ */
+#floaters { position:fixed; inset:0; pointer-events:none; z-index:9; overflow:hidden; }
+.floater {
+  position:absolute; left:0; top:0; white-space:nowrap; font-weight:700; font-size:0.82rem;
+  text-shadow:0 1px 3px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9); will-change:transform, opacity;
+}
+.floater.good { color:#5dea8f; } .floater.bad { color:#ff7b6b; } .floater.info { color:#cfe9ff; }
+.floater.hud { transform:translateX(-50%); animation:hudFloat 1.6s ease-out forwards; z-index:12; }
+@keyframes hudFloat {
+  0%   { opacity:0; transform:translate(-50%, -6px); }
+  15%  { opacity:1; }
+  100% { opacity:0; transform:translate(-50%, 26px); }
+}

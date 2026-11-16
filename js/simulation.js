@@ -66,6 +66,7 @@ import { ZONE_DEF, MONTHS_PER_YEAR, TAX_COMFORT } from './constants.js';
 import { state, getTile, tileKey } from './state.js';
 import { updateHUD, showAlert } from './ui.js';
 import { getLevel } from './levels.js';
+import { emit } from './events.js';
 
 // ── Power ──────────────────────────────────────────────────────────────────
 export function updatePower() {
@@ -188,6 +189,7 @@ export function growPopulation(maps, demand = 1, leaving = false) {
     t => t.type === 'school' && t.powered && t.roadConnected
   );
 
+  const movedIn = []; // [key, residents added] for this month
   for (const k in state.tiles) {
     const t   = state.tiles[k];
     const def = ZONE_DEF[t.type];
@@ -210,7 +212,9 @@ export function growPopulation(maps, demand = 1, leaving = false) {
       const add = Math.floor(t.growAcc);
       if (add > 0) {
         t.growAcc -= add;
-        t.population = Math.min(target, t.population + add);
+        const next = Math.min(target, t.population + add);
+        movedIn.push([k, next - t.population]);
+        t.population = next;
       }
     } else {
       t.growAcc = 0;
@@ -225,6 +229,7 @@ export function growPopulation(maps, demand = 1, leaving = false) {
       }
     }
   }
+  return movedIn;
 }
 
 // ── Fire events ────────────────────────────────────────────────────────────
@@ -433,7 +438,7 @@ export function tick() {
   const maps = buildServiceMaps();
   // Residents move in (or leave) based on last month's jobs, mood and taxes.
   const before = calcStats();
-  growPopulation(maps, before.growth.total, before.happiness < 25);
+  const movedIn = growPopulation(maps, before.growth.total, before.happiness < 25);
 
   const s     = calcStats();
 
@@ -441,16 +446,20 @@ export function tick() {
   const { totalDamage, burnedTiles } = processFireEvents(maps, s.pop);
   if (totalDamage > 0) {
     state.money -= totalDamage;
+    for (const key of burnedTiles) emit('fire', { key, damage: totalDamage, protection: maps.fireCovered[key] || 0 });
     showAlert(`🔥 A building caught fire! Lost $${totalDamage.toLocaleString()}. Build fire stations!`, 'warn');
   }
 
   // ── Income ───────────────────────────────────────────────────────────
   const wasInDebt = state.money < 0;
-  state.money += monthly(yearlyIncome(s)) - monthly(yearlyUpkeep(s));
+  const net = monthly(yearlyIncome(s)) - monthly(yearlyUpkeep(s));
+  state.money += net;
+  state.monthsPlayed++;
   state.month++;
   if (state.month >= MONTHS_PER_YEAR) { state.month = 0; state.year++; }
 
   updateHUD(s);
+  emit('month', { net, movedIn });
 
   // ── Event alerts (ongoing advice lives in the advisor panel) ──────────
   if (state.money < 0 && !wasInDebt)

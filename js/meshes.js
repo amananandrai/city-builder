@@ -15,6 +15,7 @@ import { cloneModel } from './assets.js';
 import {
   M, MAT, G, add, boxAt, facadeBlock, texturedPanel, prismGeo, coolingTowerGeo,
   rng, pick, tree, bush, hedge, streetLamp, bench, flagpole, vehicle, rooftop, bake,
+  seasonalGrass, snowy,
 } from './props.js';
 import {
   grassTexture, asphaltTexture, paverTexture, shingleTexture, shopfrontTexture,
@@ -28,7 +29,7 @@ const BASE = 0.03;       // lot plate height
 
 // ── Shared surface materials ───────────────────────────────────────────────
 const SURF = {
-  grass:   () => M(0xffffff, { map: grassTexture(), r: 1 }),
+  grass:   () => seasonalGrass(M(0xffffff, { map: grassTexture(), r: 1 })),
   paved:   () => M(0xffffff, { map: paverTexture(), r: 0.9 }),
   asphalt: () => M(0xffffff, { map: asphaltTexture(), r: 0.95 }),
 };
@@ -82,7 +83,7 @@ function parapet(g, w, d, y, mat, t = 0.03, h = 0.04) {
 function gableRoof(g, w, d, rh, y, z, wallHex, roofHex) {
   const wall = M(wallHex, { r: 0.85 });
   add(g, prismGeo(d, rh, w), wall, 0, y, z, { ry: Math.PI / 2 });
-  const roof = M(0xffffff, { map: shingleTexture(roofHex), r: 0.9 });
+  const roof = snowy(M(0xffffff, { map: shingleTexture(roofHex), r: 0.9 }), 0.85);
   const a = Math.atan2(rh, d / 2);
   const len = Math.hypot(d / 2, rh) + 0.06;
   for (const s of [-1, 1]) {
@@ -145,11 +146,12 @@ function buildHouse(g, r) {
   bush(g, -0.28, zf + 0.05, 0.7, 0xc0587a);
 }
 
-function buildApartment(g, r) {
+/** tall: false = 2–3 floor walk-up, true = 4–5 floor block. */
+function buildApartment(g, r, tall = false) {
   lot(g, 'paved', 'residential');
   const brick = r() < 0.5;
   const wall = brick ? pick(BRICKS, r) : pick([0xe9e1d3, 0xd8dee3, 0xf0d9b5, 0xc9d6c3], r);
-  const floors = 3 + Math.floor(r() * 2);
+  const floors = (tall ? 4 : 2) + Math.floor(r() * 2);
   const fh = 0.25, w = 0.78, d = 0.6, h = floors * fh;
   facadeBlock(g, w, h, d, 0, BASE, -0.08, { style: brick ? 'brick' : 'apartment', wall, bay: 0.195, floor: fh });
   const trim = M(brick ? 0xd9d2c3 : 0x7f8c8d, { r: 0.8 });
@@ -673,8 +675,24 @@ function buildRoad(g, mask, r) {
 // ═══════════════════════════════════════════════════════════════════════════
 //  ENTRY POINT
 // ═══════════════════════════════════════════════════════════════════════════
+// Homes are rebuilt as they fill up: houses → walk-ups → apartment blocks.
+const RES_STAGES = [
+  [[buildHouse, 4], [buildKenneyHouse, 2]],
+  [[(g, r) => buildApartment(g, r, false), 1]],
+  [[(g, r) => buildApartment(g, r, true), 1]],
+];
+/** Residential density stage (0–2) for a population, with hysteresis so a
+ *  home doesn't flip back and forth around a threshold. */
+export function residentialStage(pop, cur = 0) {
+  const up = pop >= 13 ? 2 : pop >= 7 ? 1 : 0;
+  if (up > cur) return up;
+  if (cur === 2 && pop < 10) return pop < 5 ? 0 : 1;
+  if (cur === 1 && pop < 5) return 0;
+  return cur;
+}
+
 const BUILDERS = {
-  residential: [[buildHouse, 4], [buildApartment, 2], [buildKenneyHouse, 2]],
+  residential: RES_STAGES[0],
   commercial:  [[buildShops, 3], [buildOffice, 2], [buildMidrise, 2]],
   industrial:  [[buildFactory, 2], [buildWarehouse, 2], [buildRefinery, 1]],
   power:       [[buildPower, 1]],
@@ -700,6 +718,7 @@ let indicatorMat = null;
  * opts.facing – y-rotation so the building fronts a road
  * opts.seed   – stable randomness (roads are rebuilt when neighbours change)
  * opts.spawn  – play the grow-in animation
+ * opts.stage  – residential density stage 0–2 (see residentialStage)
  */
 export function buildTileMesh(type, opts = {}) {
   const group = new THREE.Group();
@@ -710,7 +729,8 @@ export function buildTileMesh(type, opts = {}) {
   if (type === 'road') {
     buildRoad(body, opts.mask ?? {}, r);
   } else if (BUILDERS[type]) {
-    weighted(BUILDERS[type], r)(body, r);
+    const list = type === 'residential' ? RES_STAGES[opts.stage ?? 0] : BUILDERS[type];
+    weighted(list, r)(body, r);
     body.rotation.y = opts.facing ?? 0;
   } else {
     const def = ZONE_DEF[type];
