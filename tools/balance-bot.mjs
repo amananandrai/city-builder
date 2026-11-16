@@ -13,9 +13,9 @@ for (const f of ['constants', 'state', 'levels', 'simulation', 'events']) writeF
 writeFileSync(TMP + 'ui.js', 'export const updateHUD=()=>{};export const showAlert=()=>{};export const showLevelComplete=()=>{};');
 writeFileSync(TMP + 'package.json', '{"type":"module"}');
 const S = await import(TMP + 'simulation.js');
-const { state, resetState } = await import(TMP + 'state.js');
+const { state, resetState, inLand, nextLandCost } = await import(TMP + 'state.js');
 const { LEVELS } = await import(TMP + 'levels.js');
-const { ZONE_DEF, GRID, ECONOMY } = await import(TMP + 'constants.js');
+const { ZONE_DEF, GRID, ECONOMY, LAND_STEP } = await import(TMP + 'constants.js');
 // Overrides for experiments: BOT='{"eco":{...},"growth":6,"school":4,"money":1.5,"drain":2}'
 const X = JSON.parse(process.env.BOT || '{}');
 Object.assign(ECONOMY, X.eco || {});
@@ -50,7 +50,7 @@ function playLevel(level, { taxRate, maxYears = 80, verbose = false } = {}) {
   const { goals, constraints } = level;
   const cost = t => Math.round(ZONE_DEF[t].cost * constraints.costMult);
   const lots = lotOrder();
-  let li = 0;
+  let li = 0, landBought = 0;
   const pr = constraints.powerRadius;
   const poweredAt = (x, z) => Object.entries(state.tiles).some(([k, t]) => {
     if (t.type !== 'power') return false;
@@ -93,6 +93,13 @@ function playLevel(level, { taxRate, maxYears = 80, verbose = false } = {}) {
       // Road for this lot's street first
       const rz = isRoadRow(z - 1) ? z - 1 : z + 1;
       const needRoad = !state.tiles[key(x, rz)];
+      // Out of owned land: buy the next ring when it is affordable
+      if (!inLand(x, z) || !inLand(x, rz)) {
+        const landCost = nextLandCost(constraints.costMult);
+        if (landCost === null || state.money - landCost < 300) break;
+        state.money -= landCost; state.land += LAND_STEP; landBought++;
+        continue;
+      }
       let type = choose(x, z, s);
       if (enoughHomes && type === 'residential') type = enoughJobs ? 'park' : 'industrial';
       const total = cost(type) + (needRoad ? cost('road') : 0);
@@ -105,11 +112,11 @@ function playLevel(level, { taxRate, maxYears = 80, verbose = false } = {}) {
     S.tick();
     if (state.won || S.checkWin(S.calcStats())) {
       const f = S.calcStats();
-      return { won: true, months: m + 1, pop: f.pop, happy: Math.round(f.happiness), jobs: f.jobs, money: state.money, tiles: li };
+      return { won: true, months: m + 1, pop: f.pop, happy: Math.round(f.happiness), jobs: f.jobs, money: state.money, tiles: li, land: state.land, landBought };
     }
   }
   const f = S.calcStats();
-  return { won: false, months, pop: f.pop, happy: Math.round(f.happiness), jobs: f.jobs, money: state.money, tiles: li,
+  return { won: false, months, pop: f.pop, happy: Math.round(f.happiness), jobs: f.jobs, money: state.money, tiles: li, land: state.land, landBought,
     income: S.yearlyIncome(f) - S.yearlyUpkeep(f) };
 }
 
@@ -126,5 +133,5 @@ for (const level of LEVELS) {
   }
   rows.push({ id: level.id, ...best });
   const g = level.goals;
-  console.log(`L${String(level.id).padStart(2)} ${best.won ? 'WIN ' : 'FAIL'} ${(best.months / 12).toFixed(1).padStart(5)}y tax${String(best.rate).padStart(3)}  pop ${best.pop}/${g.pop} happy ${best.happy}/${g.happiness} jobs ${best.jobs}/${g.jobs ?? '-'} $${best.money}/${g.money ?? '-'} lots ${best.tiles}${best.won ? '' : ' net/yr ' + best.income}`);
+  console.log(`L${String(level.id).padStart(2)} ${best.won ? 'WIN ' : 'FAIL'} ${(best.months / 12).toFixed(1).padStart(5)}y tax${String(best.rate).padStart(3)}  pop ${best.pop}/${g.pop} happy ${best.happy}/${g.happiness} jobs ${best.jobs}/${g.jobs ?? '-'} $${best.money}/${g.money ?? '-'} lots ${best.tiles} land ${best.land} (+${best.landBought} rings)${best.won ? '' : ' net/yr ' + best.income}`);
 }

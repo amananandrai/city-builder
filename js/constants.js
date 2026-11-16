@@ -3,8 +3,26 @@ export const GRID    = 24;   // cells per side
 export const CELL    = 1.2;  // world units per cell
 export const MONTH_MS = 4000; // ms per in-game month at 1x (1 year = 48 s)
 export const MONTHS_PER_YEAR = 12;
-export const DAY_MONTHS = 8;     // one day/night cycle lasts this many in-game months
-export const DAYS_PER_MONTH  = 30;
+// Day/night runs on its own real-time clock (not sped up by the fast-forward
+// buttons), so a full day always takes five minutes of play however fast the
+// calendar moves.
+export const DAY_SECONDS = 300;
+export const DAY_FRAC    = 0.68; // share of the cycle the sun is up
+export const DAY_START   = 0.16; // new cities start mid-morning
+
+/** Day phase 0–1 (0 = sunrise) for seconds of play since the level began. */
+export const dayPhase = dayClock => (dayClock / DAY_SECONDS + DAY_START) % 1;
+
+/** Wall-clock hour (0–24) for a day phase: sunrise 06:00, sunset 20:00. */
+export function clockHour(p) {
+  return p < DAY_FRAC ? 6 + (p / DAY_FRAC) * 14 : (20 + ((p - DAY_FRAC) / (1 - DAY_FRAC)) * 10) % 24;
+}
+
+// ── Land ──
+// Each level starts on a square plot in the middle of the grid; more land is
+// bought one ring (LAND_STEP cells wider) at a time.
+export const LAND_STEP = 2;
+export const LAND_COST_PER_CELL = 30; // × level cost multiplier
 // ── Economy tuning ──
 // Yearly amounts. One in-game year is 48 s at 1x, so these are sized for a
 // level to take minutes, not hours (see the balance notes in levels.js).

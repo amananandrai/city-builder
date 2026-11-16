@@ -1,6 +1,6 @@
-import { state } from './state.js';
+import { state, nextLandCost } from './state.js';
 import { calcStats, yearlyIncome, yearlyUpkeep } from './simulation.js';
-import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, DAYS_PER_MONTH, BUILD_STYLES } from './constants.js';
+import { TOOLTIP_DATA, ZONE_DEF, MONTH_MS, MONTH_NAMES, GRID, dayPhase, clockHour, BUILD_STYLES } from './constants.js';
 import { LEVELS, getLevel, ERAS } from './levels.js';
 import { on } from './events.js';
 import { objectives, advise } from './advisor.js';
@@ -130,6 +130,7 @@ export function updateHUD(s) {
   renderDate();
   $('s-happy').textContent    = Math.round(s.happiness);
   $('s-level').textContent    = state.currentLevel;
+  renderLand(level);
 
   const net = yearlyIncome(s) - yearlyUpkeep(s);
   const netEl = $('s-net');
@@ -373,6 +374,7 @@ export function showBriefing() {
   const c = level.constraints;
   const rules = [
     [`💵 Starting cash $${level.startMoney.toLocaleString()}`, true],
+    [level.land >= GRID ? `🗺 Land ${GRID}×${GRID}` : `🗺 Land ${level.land}×${level.land} · buy more as you grow`, true],
     [`🏗 Build costs ×${c.costMult}`, c.costMult <= 1],
     [`💸 Tax cap ${c.taxCapPct}%`, c.taxCapPct >= 20],
     [`⚡ Power range ${c.powerRadius} tiles`, c.powerRadius >= 6],
@@ -542,9 +544,25 @@ export function initToolbar(onToolChange) {
     game.setOverlay(on ? btn.dataset.overlay : null);
   });
 
+  $('land-btn').addEventListener('click', () => game.buyLand());
+
   // Time controls
   document.querySelectorAll('#time-ctrl button').forEach(b =>
     b.addEventListener('click', () => game.setSpeed(parseInt(b.dataset.speed))));
+}
+
+/** Land button: current plot size and the price of the next ring. */
+function renderLand(level) {
+  const btn = $('land-btn');
+  const cost = nextLandCost(level.constraints.costMult);
+  btn.disabled = cost === null;
+  btn.classList.toggle('poor', cost !== null && state.money < cost);
+  const html = cost === null
+    ? `<span>🗺</span> Land ${GRID}×${GRID} (max)`
+    : `<span>🗺</span> Land ${state.land}×${state.land} · Buy more $${cost.toLocaleString()}`;
+  if (btn.dataset.html !== html) { btn.dataset.html = html; btn.innerHTML = html; }
+  btn.title = cost === null ? 'You own the whole valley.'
+    : `Buy the next ring of land: grows your plot to ${state.land + 2}×${state.land + 2} for $${cost.toLocaleString()}`;
 }
 
 /** Reflect speed/pause state in the HUD. speed 0 = paused. */
@@ -555,11 +573,12 @@ export function renderTimeControls() {
   $('paused-tag').style.display = state.paused && state.running && !modalOpen() ? 'block' : 'none';
 }
 
-/** Calendar label, e.g. "Mar 12 · Yr 2". The day advances within the month. */
+/** Calendar and time of day, e.g. "Mar · Yr 2 · ☀ 14:20". */
 export function renderDate() {
-  const frac = Math.min(0.999, state.yearClock / (MONTH_MS / 1000));
-  const day  = Math.floor(frac * DAYS_PER_MONTH) + 1;
-  const txt  = `${MONTH_NAMES[state.month]} ${day} · Yr ${state.year}`;
+  const h = clockHour(dayPhase(state.dayClock));
+  const hh = String(Math.floor(h)).padStart(2, '0');
+  const mm = String(Math.floor((h % 1) * 6) * 10).padStart(2, '0'); // 10-minute steps
+  const txt  = `${MONTH_NAMES[state.month]} · Yr ${state.year} · ${h >= 6 && h < 20 ? '☀' : '🌙'} ${hh}:${mm}`;
   const el = $('s-year');
   if (el.textContent !== txt) el.textContent = txt;
 }

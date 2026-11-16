@@ -19,6 +19,7 @@
  * simulation.js). Goals stay at or below ~78% of that ceiling, and
  * startMoney always covers a starter kit (plant, roads, a few zones).
  *   hint
+ *   land:        side of the starting plot in cells (see startLand)
  *
  * Pacing: one in-game year is 48 s at 1x (16 s at 3x). A scripted player
  * with a plain build order (streets every third row, services as it grows)
@@ -30,7 +31,17 @@
 
 // Helper to build a level object cleanly
 function lv(id, name, description, era, startMoney, goals, constraints, hint) {
-  return { id, name, description, era, startMoney, goals, constraints, hint };
+  return { id, name, description, era, startMoney, goals, constraints, hint, land: startLand(id) };
+}
+
+/**
+ * Side of the starting plot: 8×8 for the first levels, two cells wider every
+ * four levels, the full 24×24 grid from level 33. More land can be bought
+ * one ring at a time (see nextLandCost in state.js). The balance bot wins
+ * every level from these plots, buying a ring or two on the tightest ones.
+ */
+export function startLand(id) {
+  return Math.min(24, 8 + 2 * Math.floor((id - 1) / 4));
 }
 
 export const LEVELS = [
